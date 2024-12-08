@@ -20,6 +20,9 @@
 # Website: https://yfrobotics.github.io/
 # ------------------------------------------------------------------------------
 
+# EECS 106A Theseus Project 12/7/24
+# Cited from https://github.com/automaticdai/rpi-object-detection
+
 import os
 import sys
 import cv2
@@ -36,31 +39,41 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.picamera_utils import is_raspberry_camera, get_picamera
 
 
-# Servo Info
-
-# Servo control parameters
-SERVO_PIN = 17  # Replace with the physical pin number where the servo signal is connected
-SERVO_OPEN_ANGLE = 2.5  # Adjust duty cycle for open position
-SERVO_CLOSE_ANGLE = 12.5  # Adjust duty cycle for closed position
-DETECTION_THRESHOLD_AREA = 500  # Minimum area to consider valid detection
-
-
-# Setup GPIO for servo
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(SERVO_PIN, GPIO.OUT)
-servo = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz frequency for standard servos
-servo.start(SERVO_OPEN_ANGLE)  # Start with the claw open
-
-
+# Camera configuration
 CAMERA_DEVICE_ID = 0
 IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 240
 IS_RASPI_CAMERA = is_raspberry_camera()
 
-fps = 0
-hsv_min = np.array([100, 150, 50])  # Lower bound for blue in HSV
-hsv_max = np.array([130, 255, 255])  # Upper bound for blue in HSV
+# Servo configuration
+SERVO_PIN = 11  # Physical pin number (GPIO17 maps to physical pin 11)
+SERVO_FREQUENCY = 50  # Standard servo frequency in Hz
+SERVO_OPEN_ANGLE = 2.5  # Duty cycle for open position
+SERVO_CLOSE_ANGLE = 12.5  # Duty cycle for closed position
+SERVO_MOVE_DELAY = 0.5  # Delay in seconds for servo movement
 
+# Detection parameters
+DETECTION_THRESHOLD_AREA = 500  # Minimum area to consider valid detection
+MAX_STORED_COLORS = 10  # Maximum number of colors to store
+DEFAULT_WAIT_TIME = 33  # Wait time between frames in milliseconds
+ESC_KEY = 27  # ASCII code for ESC key
+
+# Default HSV color range for blue
+DEFAULT_HSV_MIN = np.array([100, 150, 50])  # Lower bound for blue in HSV
+DEFAULT_HSV_MAX = np.array([130, 255, 255])  # Upper bound for blue in HSV
+
+# Text overlay parameters
+TEXT_COLOR_BGR = (0, 255, 0)  # Green color for text
+TEXT_COLOR_GRAY = (255, 255, 255)  # White color for text in grayscale
+TEXT_ROW_SIZE = 20  # pixels
+TEXT_LEFT_MARGIN = 24  # pixels
+TEXT_FONT_SIZE = 1
+TEXT_FONT_THICKNESS = 1
+
+# Initialize global variables
+fps = 0
+hsv_min = DEFAULT_HSV_MIN
+hsv_max = DEFAULT_HSV_MAX
 colors = []
 
 print("Using raspi camera: ", IS_RASPI_CAMERA)
@@ -69,7 +82,7 @@ print("Using raspi camera: ", IS_RASPI_CAMERA)
 def move_servo_to(angle):
     """Move servo to specified angle."""
     servo.ChangeDutyCycle(angle)
-    time.sleep(0.5)  # Give the servo time to move
+    time.sleep(SERVO_MOVE_DELAY)  # Give the servo time to move
     servo.ChangeDutyCycle(0)  # Stop sending signal to avoid jitter
 
 def close_claw():
@@ -93,20 +106,17 @@ def isset(v):
 
 def on_mouse_click(event, x, y, flags, frame):
     global colors
-
+    
     if event == cv2.EVENT_LBUTTONUP:
         color_bgr = frame[y, x]
         color_rgb = tuple(reversed(color_bgr))
-        #frame[y,x].tolist()
-
-        print(color_rgb)
-
+        
         color_hsv = rgb2hsv(color_rgb[0], color_rgb[1], color_rgb[2])
-        print(color_hsv)
-
+        print(f"RGB: {color_rgb}, HSV: {color_hsv}")
+        
         colors.append(color_hsv)
-
-        print(colors)
+        if len(colors) > MAX_STORED_COLORS:
+            colors.pop(0)  # Remove oldest color if limit reached
 
 
 # R, G, B values are [0, 255].
@@ -163,26 +173,27 @@ def rgb2hsv(r, g, b):
 
 def visualize_fps(image, fps: int):
     if len(np.shape(image)) < 3:
-        text_color = (255, 255, 255)  # white
+        text_color = TEXT_COLOR_GRAY
     else:
-        text_color = (0, 255, 0)  # green
-    row_size = 20  # pixels
-    left_margin = 24  # pixels
-
-    font_size = 1
-    font_thickness = 1
-
+        text_color = TEXT_COLOR_BGR
+    
     # Draw the FPS counter
     fps_text = 'FPS = {:.1f}'.format(fps)
-    text_location = (left_margin, row_size)
+    text_location = (TEXT_LEFT_MARGIN, TEXT_ROW_SIZE)
     cv2.putText(image, fps_text, text_location, cv2.FONT_HERSHEY_PLAIN,
-                font_size, text_color, font_thickness)
+                TEXT_FONT_SIZE, text_color, TEXT_FONT_THICKNESS)
 
     return image
 
 
 if __name__ == "__main__":
     try:
+        # Setup GPIO for servo
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(SERVO_PIN, GPIO.OUT)
+        servo = GPIO.PWM(SERVO_PIN, SERVO_FREQUENCY)
+        servo.start(SERVO_OPEN_ANGLE)
+
         # To capture video from webcam.
         if IS_RASPI_CAMERA:
             cap = get_picamera(IMAGE_WIDTH, IMAGE_HEIGHT)
@@ -190,10 +201,14 @@ if __name__ == "__main__":
         else:
             # create video capture
             cap = cv2.VideoCapture(CAMERA_DEVICE_ID)
+            if not cap.isOpened():
+                raise Exception("Failed to open camera")
             # set resolution to 320x240 to reduce latency
             cap.set(3, IMAGE_WIDTH)
             cap.set(4, IMAGE_HEIGHT)
 
+        start_time = time.time()
+        frame_count = 0
         while True:
             # ----------------------------------------------------------------------
             # record start time
@@ -271,13 +286,17 @@ if __name__ == "__main__":
             fps = 1.0 / seconds
             print("Estimated fps:{0:0.1f}".format(fps));
             # if key pressed is 'Esc' then exit the loop
-            if cv2.waitKey(33) == 27:
+            if cv2.waitKey(DEFAULT_WAIT_TIME) == ESC_KEY:
                 break
     except Exception as e:
-        print(e)
+        print(f"Error occurred: {e}")
     finally:
-        # Clean up and exit the program
+        # Cleanup
+        if 'cap' in locals():
+            if IS_RASPI_CAMERA:
+                cap.stop()
+            else:
+                cap.release()
         cv2.destroyAllWindows()
-        cap.close() if IS_RASPI_CAMERA else cap.release()
         servo.stop()
         GPIO.cleanup()
