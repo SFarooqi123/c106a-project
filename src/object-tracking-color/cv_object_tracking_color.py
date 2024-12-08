@@ -27,11 +27,30 @@ import time
 import numpy as np
 import time
 import math
+import RPi.GPIO as GPIO
+
 
 # Add src directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.picamera_utils import is_raspberry_camera, get_picamera
+
+
+# Servo Info
+
+# Servo control parameters
+SERVO_PIN = 17  # Replace with the physical pin number where the servo signal is connected
+SERVO_OPEN_ANGLE = 2.5  # Adjust duty cycle for open position
+SERVO_CLOSE_ANGLE = 12.5  # Adjust duty cycle for closed position
+DETECTION_THRESHOLD_AREA = 500  # Minimum area to consider valid detection
+
+
+# Setup GPIO for servo
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(SERVO_PIN, GPIO.OUT)
+servo = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz frequency for standard servos
+servo.start(SERVO_OPEN_ANGLE)  # Start with the claw open
+
 
 CAMERA_DEVICE_ID = 0
 IMAGE_WIDTH = 320
@@ -39,12 +58,29 @@ IMAGE_HEIGHT = 240
 IS_RASPI_CAMERA = is_raspberry_camera()
 
 fps = 0
-hsv_min = np.array((50, 80, 80))
-hsv_max = np.array((120, 255, 255))
+hsv_min = np.array([100, 150, 50])  # Lower bound for blue in HSV
+hsv_max = np.array([130, 255, 255])  # Upper bound for blue in HSV
 
 colors = []
 
 print("Using raspi camera: ", IS_RASPI_CAMERA)
+
+
+def move_servo_to(angle):
+    """Move servo to specified angle."""
+    servo.ChangeDutyCycle(angle)
+    time.sleep(0.5)  # Give the servo time to move
+    servo.ChangeDutyCycle(0)  # Stop sending signal to avoid jitter
+
+def close_claw():
+    """Close the servo claw."""
+    print("Closing claw...")
+    move_servo_to(SERVO_CLOSE_ANGLE)
+
+def open_claw():
+    """Open the servo claw."""
+    print("Opening claw...")
+    move_servo_to(SERVO_OPEN_ANGLE)
 
 def isset(v):
     try:
@@ -182,18 +218,6 @@ if __name__ == "__main__":
             # thresh = cv2.inRange(hsv,np.array((120, 80, 80)), np.array((180, 255, 255)))
 
             # find the color using a color threshhold
-            if colors:
-                # find max & min h, s, v
-                minh = min(c[0] for c in colors)
-                mins = min(c[1] for c in colors)
-                minv = min(c[2] for c in colors)
-                maxh = max(c[0] for c in colors)
-                maxs = max(c[1] for c in colors)
-                maxv = max(c[2] for c in colors)
-
-                print("New HSV threshold: ", (minh, mins, minv), (maxh, maxs, maxv))
-                hsv_min = np.array((minh, mins, minv))
-                hsv_max = np.array((maxh, maxs, maxv))
 
             thresh = cv2.inRange(hsv, hsv_min, hsv_max)
             thresh2 = thresh.copy()
@@ -214,16 +238,26 @@ if __name__ == "__main__":
                 area = cv2.contourArea(cnt)
                 if area > max_area:
                     max_area = area
-                    best_cnt = cnt
+                    best_cnt = cnt  
 
-            # finding centroids of best_cnt and draw a circle there
-            if isset('best_cnt'):
+            # You can also optionally add a best_cnt > detected_area clause here to make sure it's only triggered after a certain portion of the tarp  is detected.
+            if best_cnt is not None:
+                # A valid blob was detected; trigger the servo
                 M = cv2.moments(best_cnt)
-                cx,cy = int(M['m10']/M['m00']), int(M['m01']/M['m00'])
-                cv2.circle(frame,(cx,cy),5,255,-1)
-                print("Central pos: (%d, %d)" % (cx,cy))
+                cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # Centroid coordinates
+                print("Detected blob at (%d, %d) with area %d" % (cx, cy, max_area))
+
+                # Close the servo claw
+                open_claw()
+
+                # Optional: Keep the claw closed for a moment
+                time.sleep(2)
+
+                # Reopen the servo claw
+                close_claw()
             else:
-                print("[Warning]Tag lost...")
+                # No valid blob detected
+                print("[Warning] No valid blob detected or too small")
 
             # Show the original and processed image
             #res = cv2.bitwise_and(frame, frame, mask=thresh2)
@@ -245,3 +279,5 @@ if __name__ == "__main__":
         # Clean up and exit the program
         cv2.destroyAllWindows()
         cap.close() if IS_RASPI_CAMERA else cap.release()
+        servo.stop()
+        GPIO.cleanup()
