@@ -70,6 +70,9 @@ TEXT_LEFT_MARGIN = 24  # pixels
 TEXT_FONT_SIZE = 1
 TEXT_FONT_THICKNESS = 1
 
+# Color space configuration
+USE_BGR_MODE = False  # Set to False if camera feed shows red as blue
+
 # Initialize global variables
 fps = 0
 hsv_min = DEFAULT_HSV_MIN
@@ -186,6 +189,62 @@ def visualize_fps(image, fps: int):
     return image
 
 
+def process_frame(frame):
+    # Convert BGR to RGB if needed
+    if not USE_BGR_MODE:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    # Convert to HSV color space
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV if USE_BGR_MODE else cv2.COLOR_RGB2HSV)
+    
+    # find the color using a color threshhold
+    thresh = cv2.inRange(hsv, hsv_min, hsv_max)
+    thresh2 = thresh.copy()
+
+    # find contours in the threshold image
+    (major_ver, minor_ver, subminor_ver) = (cv2.__version__).split('.')
+    #print(major_ver, minor_ver, subminor_ver)
+
+    # findContours() has different form for opencv2 and opencv3
+    if major_ver == "2" or major_ver == "3":
+        _, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    else:
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    # finding contour with maximum area and store it as best_cnt
+    max_area = 0
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area > max_area:
+            max_area = area
+            best_cnt = cnt  
+
+    # You can also optionally add a best_cnt > detected_area clause here to make sure it's only triggered after a certain portion of the tarp  is detected.
+    if best_cnt is not None:
+        # A valid blob was detected; trigger the servo
+        M = cv2.moments(best_cnt)
+        cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # Centroid coordinates
+        print("Detected blob at (%d, %d) with area %d" % (cx, cy, max_area))
+
+        # Close the servo claw
+        open_claw()
+
+        # Optional: Keep the claw closed for a moment
+        time.sleep(2)
+
+        # Reopen the servo claw
+        close_claw()
+    else:
+        # No valid blob detected
+        print("[Warning] No valid blob detected or too small")
+
+    # Convert back to BGR for display if in RGB mode
+    if not USE_BGR_MODE:
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    
+    return frame, thresh2
+
+
 if __name__ == "__main__":
     try:
         # Setup GPIO for servo
@@ -224,59 +283,11 @@ if __name__ == "__main__":
             # Or get it from a JPEG
             # frame = cv2.imread('frame0010.jpg', 1)
 
-            # Convert the image to hsv space and find range of colors
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            cv2.namedWindow('frame')
-            cv2.setMouseCallback('frame', on_mouse_click, frame)
-
-            # Uncomment this for RED tag
-            # thresh = cv2.inRange(hsv,np.array((120, 80, 80)), np.array((180, 255, 255)))
-
-            # find the color using a color threshhold
-
-            thresh = cv2.inRange(hsv, hsv_min, hsv_max)
-            thresh2 = thresh.copy()
-
-            # find contours in the threshold image
-            (major_ver, minor_ver, subminor_ver) = (cv2.__version__).split('.')
-            #print(major_ver, minor_ver, subminor_ver)
-
-            # findContours() has different form for opencv2 and opencv3
-            if major_ver == "2" or major_ver == "3":
-                _, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-            else:
-                contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-            # finding contour with maximum area and store it as best_cnt
-            max_area = 0
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area > max_area:
-                    max_area = area
-                    best_cnt = cnt  
-
-            # You can also optionally add a best_cnt > detected_area clause here to make sure it's only triggered after a certain portion of the tarp  is detected.
-            if best_cnt is not None:
-                # A valid blob was detected; trigger the servo
-                M = cv2.moments(best_cnt)
-                cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # Centroid coordinates
-                print("Detected blob at (%d, %d) with area %d" % (cx, cy, max_area))
-
-                # Close the servo claw
-                open_claw()
-
-                # Optional: Keep the claw closed for a moment
-                time.sleep(2)
-
-                # Reopen the servo claw
-                close_claw()
-            else:
-                # No valid blob detected
-                print("[Warning] No valid blob detected or too small")
-
+            # Process frame
+            processed_frame, thresh2 = process_frame(frame)
+            
             # Show the original and processed image
-            #res = cv2.bitwise_and(frame, frame, mask=thresh2)
-            cv2.imshow('frame', visualize_fps(frame, fps))
+            cv2.imshow('frame', visualize_fps(processed_frame, fps))
             cv2.imshow('thresh', visualize_fps(thresh2, fps))
             # ----------------------------------------------------------------------
             # record end time

@@ -17,6 +17,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.picamera_utils import is_raspberry_camera, get_picamera
 
+# Configuration
+USE_BGR_MODE = False  # Set to False if camera feed shows red as blue
+
 def init_camera():
     # Try different camera indices
     for index in range(4):
@@ -76,11 +79,18 @@ def capture_periodic_photos(interval_seconds, duration_seconds, output_dir="capt
                         print("Failed to capture frame")
                         continue
                 
+                # Convert BGR to RGB if needed
+                if not USE_BGR_MODE:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
                 # Generate filename with timestamp
                 filename = f"photo_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
                 photo_path = output_path / filename
                 
                 # Save the image
+                # Convert back to BGR for saving if in RGB mode
+                if not USE_BGR_MODE:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 cv2.imwrite(str(photo_path), frame)
                 photo_count += 1
                 

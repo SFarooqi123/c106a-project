@@ -29,6 +29,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.picamera_utils import is_raspberry_camera, get_picamera
 
+# Configuration
+USE_BGR_MODE = False  # Set to False if camera feed shows red as blue
+
 def init_camera():
     # Try different camera indices
     for index in range(4):
@@ -65,6 +68,10 @@ def main():
                     print("Failed to grab frame")
                     break
                 
+            # Convert BGR to RGB if needed
+            if not USE_BGR_MODE:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
             # Display frame size for debugging
             print(f"Frame shape: {frame.shape}")
             
@@ -72,7 +79,10 @@ def main():
             current_time = time.time()
             if current_time - start_time >= 1.0:
                 frame_path = os.path.join(output_dir, f"frame_{frame_count}.jpg")
-                cv2.imwrite(frame_path, frame)
+                if USE_BGR_MODE:
+                    cv2.imwrite(frame_path, frame)
+                else:
+                    cv2.imwrite(frame_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 print(f"Saved frame to {frame_path}")
                 frame_count += 1
                 start_time = current_time
