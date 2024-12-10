@@ -31,6 +31,20 @@ def init_camera():
             return cap
     raise RuntimeError("No camera found!")
 
+def save_image(frame, output_path):
+    """Save image with proper encoding to avoid libpng warnings"""
+    # Convert color space if needed
+    if len(frame.shape) == 3:  # Color image
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    
+    # Encode to PNG without color profile
+    is_success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    if is_success:
+        with open(output_path, "wb") as f:
+            f.write(buffer)
+        return True
+    return False
+
 def capture_periodic_photos(interval_seconds, duration_seconds, output_dir="captured_photos"):
     """
     Capture photos every interval_seconds until duration_seconds have elapsed.
@@ -87,15 +101,15 @@ def capture_periodic_photos(interval_seconds, duration_seconds, output_dir="capt
                 photo_path = output_path / filename
                 
                 # Save the image
-                # Convert back to BGR for saving
-                save_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(str(photo_path), save_frame)
-                photo_count += 1
+                if save_image(frame, str(photo_path)):
+                    print(f"Saved photo {photo_count}: {filename}")
+                else:
+                    print(f"Failed to save photo {photo_count}: {filename}")
                 
                 # Log the capture
                 log_entry = f"{timestamp.isoformat()},{photo_path.absolute()}\n"
                 log.write(log_entry)
-                print(f"Captured photo {photo_count}: {filename}")
+                photo_count += 1
                 
                 # Wait for next interval
                 time.sleep(interval_seconds)
