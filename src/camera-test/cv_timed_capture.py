@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -79,19 +79,17 @@ def capture_periodic_photos(interval_seconds, duration_seconds, output_dir="capt
                         print("Failed to capture frame")
                         continue
                 
-                # Convert BGR to RGB if needed
-                if not USE_BGR_MODE:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    
+                # Swap red and blue channels for correct color
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                
                 # Generate filename with timestamp
                 filename = f"photo_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
                 photo_path = output_path / filename
                 
                 # Save the image
-                # Convert back to BGR for saving if in RGB mode
-                if not USE_BGR_MODE:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(str(photo_path), frame)
+                # Convert back to BGR for saving
+                save_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(str(photo_path), save_frame)
                 photo_count += 1
                 
                 # Log the capture

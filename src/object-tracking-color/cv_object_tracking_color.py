@@ -51,16 +51,18 @@ SERVO_FREQUENCY = 50  # Standard servo frequency in Hz
 SERVO_OPEN_ANGLE = 2.5  # Duty cycle for open position
 SERVO_CLOSE_ANGLE = 12.5  # Duty cycle for closed position
 SERVO_MOVE_DELAY = 0.5  # Delay in seconds for servo movement
+SERVO_TRIGGER_AREA = 1000  # Minimum area to trigger servo
 
 # Detection parameters
 DETECTION_THRESHOLD_AREA = 500  # Minimum area to consider valid detection
 MAX_STORED_COLORS = 10  # Maximum number of colors to store
 DEFAULT_WAIT_TIME = 33  # Wait time between frames in milliseconds
 ESC_KEY = 27  # ASCII code for ESC key
+MIN_AREA = 100  # Minimum area for valid blob detection
 
 # Default HSV color range for blue
-DEFAULT_HSV_MIN = np.array([100, 150, 50])  # Lower bound for blue in HSV
-DEFAULT_HSV_MAX = np.array([130, 255, 255])  # Upper bound for blue in HSV
+DEFAULT_HSV_MIN = np.array([0, 100, 100], dtype=np.uint8)  # Lower bound for blue in HSV
+DEFAULT_HSV_MAX = np.array([10, 255, 255], dtype=np.uint8)  # Upper bound for blue in HSV
 
 # Text overlay parameters
 TEXT_COLOR_BGR = (0, 255, 0)  # Green color for text
@@ -190,57 +192,53 @@ def visualize_fps(image, fps: int):
 
 
 def process_frame(frame):
-    # Convert BGR to RGB if needed
-    if not USE_BGR_MODE:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # Swap red and blue channels for correct color
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
     # Convert to HSV color space
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV if USE_BGR_MODE else cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
     
-    # find the color using a color threshhold
+    # Find the color using a color threshold
     thresh = cv2.inRange(hsv, hsv_min, hsv_max)
     thresh2 = thresh.copy()
 
-    # find contours in the threshold image
-    (major_ver, minor_ver, subminor_ver) = (cv2.__version__).split('.')
-    #print(major_ver, minor_ver, subminor_ver)
+    # Find contours in the threshold image
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-    # findContours() has different form for opencv2 and opencv3
-    if major_ver == "2" or major_ver == "3":
-        _, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    else:
-        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-    # finding contour with maximum area and store it as best_cnt
+    # Finding contour with maximum area
     max_area = 0
+    best_cnt = None
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area > max_area:
             max_area = area
-            best_cnt = cnt  
+            best_cnt = cnt
 
-    # You can also optionally add a best_cnt > detected_area clause here to make sure it's only triggered after a certain portion of the tarp  is detected.
-    if best_cnt is not None:
-        # A valid blob was detected; trigger the servo
+    # Process the detected blob
+    if best_cnt is not None and max_area > MIN_AREA:
         M = cv2.moments(best_cnt)
-        cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # Centroid coordinates
-        print("Detected blob at (%d, %d) with area %d" % (cx, cy, max_area))
-
-        # Close the servo claw
-        open_claw()
-
-        # Optional: Keep the claw closed for a moment
-        time.sleep(2)
-
-        # Reopen the servo claw
-        close_claw()
+        if M['m00'] != 0:
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
+            
+            # Draw the detection
+            cv2.drawContours(frame, [best_cnt], -1, (0, 255, 0), 2)
+            cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
+            cv2.putText(frame, f'Area: {int(max_area)}', (cx, cy - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            
+            print(f"Detected blob at ({cx}, {cy}) with area {max_area}")
+            
+            # Trigger servo if area is large enough
+            if max_area > SERVO_TRIGGER_AREA:
+                open_claw()
+                time.sleep(2)
+                close_claw()
     else:
-        # No valid blob detected
         print("[Warning] No valid blob detected or too small")
 
-    # Convert back to BGR for display if in RGB mode
-    if not USE_BGR_MODE:
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    # Convert back to BGR for display
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     
     return frame, thresh2
 
