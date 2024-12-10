@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # ------------------------------------------------------------------------------
 # rpi-object-detection
@@ -18,6 +18,7 @@ import sys
 import cv2
 import time
 import numpy as np
+import argparse
 
 # Set OpenCV to use a headless backend
 os.environ['OPENCV_VIDEOIO_PRIORITY_BACKEND'] = '0'
@@ -44,14 +45,17 @@ def init_camera():
     raise RuntimeError("No camera found!")
 
 def main():
+    # Initialize camera
+    if is_raspberry_camera():
+        camera = get_picamera(320, 240)
+        camera.start()
+    else:
+        camera = init_camera()
+    if camera is None:
+        print("Error: Could not initialize camera")
+        return
+
     try:
-        # Initialize camera
-        if is_raspberry_camera():
-            cap = get_picamera(320, 240)
-            cap.start()
-        else:
-            cap = init_camera()
-        
         # Create output directory if it doesn't exist
         output_dir = "camera_test_output"
         os.makedirs(output_dir, exist_ok=True)
@@ -60,18 +64,18 @@ def main():
         start_time = time.time()
         
         while True:
+            # Capture frame
             if is_raspberry_camera():
-                frame = cap.capture_array()
+                frame = camera.capture_array()
             else:
-                ret, frame = cap.read()
+                ret, frame = camera.read()
                 if not ret:
                     print("Failed to grab frame")
                     break
-                
-            # Convert BGR to RGB if needed
-            if not USE_BGR_MODE:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+            # Swap red and blue channels for correct color display
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
             # Display frame size for debugging
             print(f"Frame shape: {frame.shape}")
             
@@ -79,25 +83,30 @@ def main():
             current_time = time.time()
             if current_time - start_time >= 1.0:
                 frame_path = os.path.join(output_dir, f"frame_{frame_count}.jpg")
-                if USE_BGR_MODE:
-                    cv2.imwrite(frame_path, frame)
-                else:
-                    cv2.imwrite(frame_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+                # Convert back to BGR for saving
+                save_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(frame_path, save_frame)
                 print(f"Saved frame to {frame_path}")
                 frame_count += 1
                 start_time = current_time
             
-            # Break after 5 frames
-            if frame_count >= 5:
-                print("Captured 5 frames successfully")
+            # Convert back to BGR for display
+            display_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            cv2.imshow('Camera Feed', display_frame)
+            
+            # Break on 'q' press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
                 
     except Exception as e:
         print(f"Error: {str(e)}")
     finally:
         # Cleanup
-        if 'cap' in locals():
-            cap.close() if is_raspberry_camera() else cap.release()
+        if is_raspberry_camera():
+            camera.close()
+        else:
+            camera.release()
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
