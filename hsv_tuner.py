@@ -20,6 +20,9 @@ def create_trackbars():
     # Create trackbars for area thresholds
     cv2.createTrackbar('Area min', 'HSV Tuner', 100, 10000, nothing)
     cv2.createTrackbar('Area max', 'HSV Tuner', 5000, 10000, nothing)
+    
+    # Add BGR/RGB toggle
+    cv2.createTrackbar('BGR Mode', 'HSV Tuner', 1, 1, nothing)
 
 def get_trackbar_values():
     # Get current positions of trackbars
@@ -31,8 +34,9 @@ def get_trackbar_values():
     v_max = cv2.getTrackbarPos('V max', 'HSV Tuner')
     area_min = cv2.getTrackbarPos('Area min', 'HSV Tuner')
     area_max = cv2.getTrackbarPos('Area max', 'HSV Tuner')
+    bgr_mode = cv2.getTrackbarPos('BGR Mode', 'HSV Tuner')
     
-    return h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max
+    return h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode
 
 def main():
     # Initialize camera
@@ -48,11 +52,15 @@ def main():
             print("Failed to grab frame")
             break
             
-        # Convert BGR to HSV
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
         # Get current trackbar values
-        h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max = get_trackbar_values()
+        h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode = get_trackbar_values()
+        
+        # Convert BGR to RGB if needed
+        if not bgr_mode:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+        # Convert to HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV if bgr_mode else cv2.COLOR_RGB2HSV)
         
         # Create HSV range mask
         lower_hsv = np.array([h_min, s_min, v_min])
@@ -80,13 +88,19 @@ def main():
                 cv2.putText(result, f'Area: {int(area)}', (x, y-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
         
+        # Convert back to BGR for display if in RGB mode
+        if not bgr_mode:
+            result = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
         # Show images
         cv2.imshow('Original', frame)
         cv2.imshow('Mask', mask)
         cv2.imshow('Result', result)
         
-        # Display HSV values
-        print(f'\rCurrent HSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}], ' + 
+        # Display HSV values and color mode
+        print(f'\rMode: {"BGR" if bgr_mode else "RGB"}, ' +
+              f'HSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}], ' + 
               f'Area Range: {area_min} to {area_max}', end='')
         
         # Break loop on 'q' press

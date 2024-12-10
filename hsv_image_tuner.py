@@ -21,6 +21,9 @@ def create_trackbars():
     # Create trackbars for area thresholds
     cv2.createTrackbar('Area min', 'HSV Tuner', 100, 10000, nothing)
     cv2.createTrackbar('Area max', 'HSV Tuner', 5000, 10000, nothing)
+    
+    # Add BGR/RGB toggle
+    cv2.createTrackbar('BGR Mode', 'HSV Tuner', 1, 1, nothing)
 
 def get_trackbar_values():
     # Get current positions of trackbars
@@ -32,12 +35,18 @@ def get_trackbar_values():
     v_max = cv2.getTrackbarPos('V max', 'HSV Tuner')
     area_min = cv2.getTrackbarPos('Area min', 'HSV Tuner')
     area_max = cv2.getTrackbarPos('Area max', 'HSV Tuner')
+    bgr_mode = cv2.getTrackbarPos('BGR Mode', 'HSV Tuner')
     
-    return h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max
+    return h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode
 
-def process_image(image, h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max):
-    # Convert BGR to HSV
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+def process_image(image, h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode):
+    # Convert BGR to RGB if needed
+    working_image = image.copy()
+    if not bgr_mode:
+        working_image = cv2.cvtColor(working_image, cv2.COLOR_BGR2RGB)
+    
+    # Convert to HSV
+    hsv = cv2.cvtColor(working_image, cv2.COLOR_BGR2HSV if bgr_mode else cv2.COLOR_RGB2HSV)
     
     # Create HSV range mask
     lower_hsv = np.array([h_min, s_min, v_min])
@@ -48,7 +57,7 @@ def process_image(image, h_min, h_max, s_min, s_max, v_min, v_max, area_min, are
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     # Create result image
-    result = image.copy()
+    result = working_image.copy()
     
     # Draw contours that meet area threshold
     detected_areas = []
@@ -77,6 +86,11 @@ def process_image(image, h_min, h_max, s_min, s_max, v_min, v_max, area_min, are
                 'bbox': (x, y, w, h)
             })
     
+    # Convert back to BGR for display if in RGB mode
+    if not bgr_mode:
+        result = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
+        working_image = cv2.cvtColor(working_image, cv2.COLOR_RGB2BGR)
+    
     return mask, result, detected_areas
 
 def main():
@@ -102,11 +116,11 @@ def main():
     
     while True:
         # Get current trackbar values
-        h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max = get_trackbar_values()
+        h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode = get_trackbar_values()
         
         # Process image with current values
         mask, result, detected_areas = process_image(
-            original, h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max
+            original, h_min, h_max, s_min, s_max, v_min, v_max, area_min, area_max, bgr_mode
         )
         
         # Show images
@@ -116,7 +130,8 @@ def main():
         
         # Display HSV values and detected areas
         print('\r' + '-'*80, end='')
-        print(f'\rHSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}], ' + 
+        print(f'\rMode: {"BGR" if bgr_mode else "RGB"}, ' +
+              f'HSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}], ' + 
               f'Area Range: {area_min} to {area_max}', end='')
         print(f'\nDetected {len(detected_areas)} objects', end='')
         
@@ -127,6 +142,7 @@ def main():
         elif key == ord('s'):
             # Save the current values to a file
             with open('hsv_values.txt', 'w') as f:
+                f.write(f"Color Mode: {'BGR' if bgr_mode else 'RGB'}\n")
                 f.write(f"HSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}]\n")
                 f.write(f"Area Range: {area_min} to {area_max}\n")
                 f.write("\nDetected Objects:\n")
@@ -140,6 +156,7 @@ def main():
     # Clean up
     cv2.destroyAllWindows()
     print("\nFinal HSV and Area values:")
+    print(f"Mode: {'BGR' if bgr_mode else 'RGB'}")
     print(f"HSV Range: [{h_min},{s_min},{v_min}] to [{h_max},{s_max},{v_max}]")
     print(f"Area Range: {area_min} to {area_max}")
 
