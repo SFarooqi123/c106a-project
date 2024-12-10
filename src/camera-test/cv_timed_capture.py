@@ -106,9 +106,9 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Capture periodic photos with timestamps')
-    parser.add_argument('-i', '--interval', type=float, default=5.0,
+    parser.add_argument('-i', '--interval', type=float, default=1.0,
                         help='Interval between photos in seconds (default: 5.0)')
-    parser.add_argument('-d', '--duration', type=float, default=60.0,
+    parser.add_argument('-d', '--duration', type=float, default=10000.0,
                         help='Total duration to run in seconds (default: 60.0)')
     parser.add_argument('-o', '--output', type=str, default='captured_photos',
                         help='Output directory for photos (default: captured_photos)')
