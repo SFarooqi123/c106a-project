@@ -44,6 +44,20 @@ def init_camera():
             return cap
     raise RuntimeError("No camera found!")
 
+def save_image(frame, output_path):
+    """Save image with proper encoding to avoid libpng warnings"""
+    # Convert color space if needed
+    if len(frame.shape) == 3:  # Color image
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    
+    # Encode to PNG without color profile
+    is_success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    if is_success:
+        with open(output_path, "wb") as f:
+            f.write(buffer)
+        return True
+    return False
+
 def main():
     # Initialize camera
     if is_raspberry_camera():
@@ -83,10 +97,10 @@ def main():
             current_time = time.time()
             if current_time - start_time >= 1.0:
                 frame_path = os.path.join(output_dir, f"frame_{frame_count}.jpg")
-                # Convert back to BGR for saving
-                save_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(frame_path, save_frame)
-                print(f"Saved frame to {frame_path}")
+                if save_image(frame, frame_path):
+                    print(f"Saved frame to {frame_path}")
+                else:
+                    print(f"Failed to save frame to {frame_path}")
                 frame_count += 1
                 start_time = current_time
             
