@@ -1,0 +1,15 @@
+(venv) c106a@c106a-workspace:~/Desktop/c106a-project $ ls -l /dev/gpiochip*
+crw-rw----+ 1 root gpio 254,  0 Dec 10 23:49 /dev/gpiochip0
+crw-rw----+ 1 root gpio 254, 10 Dec 10 23:49 /dev/gpiochip10
+crw-rw----+ 1 root gpio 254, 11 Dec 10 23:49 /dev/gpiochip11
+crw-rw----+ 1 root gpio 254, 12 Dec 10 23:49 /dev/gpiochip12
+crw-rw----+ 1 root gpio 254, 13 Dec 10 23:49 /dev/gpiochip13
+lrwxrwxrwx  1 root root       9 Dec 10 23:49 /dev/gpiochip4 -> gpiochip0
+(venv) c106a@c106a-workspace:~/Desktop/c106a-project $ ls -l /sys/class/gpio/
+total 0
+-rwxrwx--- 1 root gpio 16384 Dec 11 00:06 export
+lrwxrwxrwx 1 root gpio     0 Dec 10 23:39 gpiochip512 -> ../../devices/platform/soc/107d508500.gpio/gpio/gpiochip512
+lrwxrwxrwx 1 root gpio     0 Dec 10 23:39 gpiochip544 -> ../../devices/platform/soc/107d508500.gpio/gpio/gpiochip544
+lrwxrwxrwx 1 root gpio     0 Dec 10 23:39 gpiochip548 -> ../../devices/platform/soc/107d517c00.gpio/gpio/gpiochip548
+lrwxrwxrwx 1 root gpio     0 Dec 10 23:39 gpiochip565 -> ../../devices/platform/soc/107d517c00.gpio/gpio/gpiochip565
+lrwxrwxrwx 1 root gpio     0 Dec 10 23:39 gpiochip571 -> ../../devices/platform/axi/1000120000.pcie/1f000d0000.gpio/gpio/gpiochip571
