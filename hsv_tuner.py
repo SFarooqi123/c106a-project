@@ -295,7 +295,7 @@ class HSVTuner:
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
-                self.save_config()
+                self.cleanup()  # Call cleanup instead of just save_config
                 break
             elif key == ord('y'):
                 if self.use_camera:
