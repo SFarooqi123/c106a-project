@@ -83,7 +83,7 @@ class HSVTuner:
             ('H min', 0, 179), ('H max', 179, 179),
             ('S min', 0, 255), ('S max', 255, 255),
             ('V min', 0, 255), ('V max', 255, 255),
-            ('Area min', 100, 100000), ('Area max', 5000, 100000)
+            ('Area min', 100, 200), ('Area max', 100, 200)  # Reduced area range
         ]
         
         for name, default, max_val in params:

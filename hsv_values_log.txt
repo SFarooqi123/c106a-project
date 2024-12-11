@@ -29,3 +29,59 @@ HSV_MAX = np.array([179, 255, 255], dtype=np.uint8)  # Upper bound of target col
 MIN_AREA = 100    # Minimum area to consider a valid detection
 MAX_AREA = 5000  # Maximum area to consider a valid detection
 #--------------------------------------------------------------------------------
+
+# 2024-12-11 11:24:50
+HSV_MIN = np.array([28, 0, 0], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([179, 255, 255], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = 100    # Minimum area to consider a valid detection
+MAX_AREA = 5000  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:24:50
+HSV_MIN = np.array([-1, -1, -1], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([-1, -1, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:25:04
+HSV_MIN = np.array([0, -1, -1], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([-1, -1, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:25:12
+HSV_MIN = np.array([0, -1, -1], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([0, -1, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:26:06
+HSV_MIN = np.array([0, 0, -1], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([0, -1, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:26:08
+HSV_MIN = np.array([0, 0, -1], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([0, 0, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:27:51
+HSV_MIN = np.array([0, 0, 0], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([0, 0, -1], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
+
+# 2024-12-11 11:29:08
+HSV_MIN = np.array([0, 0, 0], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([0, 0, 0], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = -1    # Minimum area to consider a valid detection
+MAX_AREA = -1  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
