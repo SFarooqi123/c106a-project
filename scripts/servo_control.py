@@ -32,39 +32,30 @@ def main():
             sys.exit(1)
 
     try:
-        import gpiod
+        from periphery import GPIO
     except ImportError:
-        print("\nError: Could not import gpiod.")
-        print("Please install required packages:")
-        print("sudo apt-get update")
-        print("sudo apt-get install python3-libgpiod gpiod")
+        print("\nError: Could not import periphery.")
+        print("Please install required package:")
+        print("sudo pip3 install python-periphery")
         sys.exit(1)
 
     # Get command line arguments
     args = parse_args()
 
     try:
-        # Open GPIO chip
-        chip = gpiod.Chip('gpiochip0')
-        
-        # Get GPIO line
-        line = chip.get_line(args.pin)
-        
-        # Request GPIO line
-        config = gpiod.LineRequest()
-        config.request_type = gpiod.LINE_REQ_DIR_OUT
-        config.consumer = "servo_control"
-        line.request(config)
+        # Open GPIO for output
+        gpio = GPIO(args.pin, "out")
+        print(f"Successfully opened GPIO {args.pin} for output")
         
     except Exception as e:
         print(f"Error setting up GPIO: {str(e)}")
-        print("Make sure you have the correct permissions and gpiod is properly installed.")
+        print("Make sure you have the correct permissions.")
         sys.exit(1)
 
     def cleanup():
-        """Release GPIO line"""
+        """Close GPIO"""
         try:
-            line.release()
+            gpio.close()
         except:
             pass
 
@@ -84,11 +75,8 @@ def main():
             # Switch between positions
             current_position = args.angle if current_position == 0 else 0
             
-            # For servos, we'll simulate PWM by toggling quickly
             print(f"Moving to position: {current_position}°")
-            
-            # Simple digital output for testing
-            line.set_value(1 if current_position > 90 else 0)
+            gpio.write(True if current_position > 90 else False)
             
             # Wait for next switch
             time.sleep(args.interval)
