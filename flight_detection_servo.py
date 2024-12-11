@@ -20,8 +20,6 @@ MAX_AREA = 50000   # Maximum area to consider a valid detection
 
 # Servo Configuration
 GPIO_PIN = 17          # GPIO pin number for servo
-TARGET_ANGLE = 90      # Target angle to move to when blob detected (in degrees)
-START_ANGLE = 0        # Starting angle (in degrees)
 SERVO_COOLDOWN = 1.0   # Time to wait between servo movements (seconds)
 
 def parse_args():
@@ -38,10 +36,6 @@ def parse_args():
     parser.add_argument('--detections-only', action='store_true',
                       help='Only save frames with color detections (default: save all frames)')
     return parser.parse_args()
-
-def angle_to_value(angle):
-    """Convert angle (0-180) to servo value (-1 to 1)"""
-    return -1 + (angle / 90.0)  # Maps 0° to -1, 90° to 0, and 180° to 1
 
 def init_camera(exposure):
     """Initialize the camera with specified resolution and exposure."""
@@ -82,7 +76,7 @@ def init_servo():
     """Initialize the servo motor"""
     try:
         servo = Servo(GPIO_PIN)
-        servo.value = angle_to_value(START_ANGLE)
+        servo.min()  # Move to minimum position (-1)
         print(f"Initialized servo on GPIO {GPIO_PIN}")
         return servo
     except Exception as e:
@@ -179,7 +173,7 @@ def main():
     start_time = time.time()
     last_capture_time = start_time
     last_servo_move = start_time - SERVO_COOLDOWN  # Allow immediate first move
-    current_angle = START_ANGLE
+    servo_at_min = True  # Track if servo is at min position
     
     try:
         while (time.time() - start_time) < total_duration:
@@ -201,14 +195,14 @@ def main():
                 # Control servo if blob detected and cooldown period has passed
                 servo_moved = False
                 if detected and servo is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
-                    if current_angle == START_ANGLE:
-                        servo.value = angle_to_value(TARGET_ANGLE)
-                        current_angle = TARGET_ANGLE
-                        print(f"Blob detected! Moving servo to {TARGET_ANGLE}°")
+                    if servo_at_min:
+                        servo.max()  # Move to maximum position (1)
+                        servo_at_min = False
+                        print("Blob detected! Moving servo to max position")
                     else:
-                        servo.value = angle_to_value(START_ANGLE)
-                        current_angle = START_ANGLE
-                        print(f"Returning servo to {START_ANGLE}°")
+                        servo.min()  # Move to minimum position (-1)
+                        servo_at_min = True
+                        print("Returning servo to min position")
                     last_servo_move = current_time
                     servo_moved = True
                 
@@ -243,7 +237,7 @@ def main():
         # Cleanup
         camera.release()
         if servo is not None:
-            servo.value = angle_to_value(START_ANGLE)  # Return to start position
+            servo.min()  # Return to minimum position
             servo.close()
         print("Cleanup completed")
 
