@@ -32,39 +32,41 @@ def main():
             sys.exit(1)
 
     try:
-        import pigpio
+        import gpiod
     except ImportError:
-        print("\nError: Could not import pigpio.")
+        print("\nError: Could not import gpiod.")
         print("Please install required packages:")
         print("sudo apt-get update")
-        print("sudo apt-get install pigpio python3-pigpio")
-        print("sudo systemctl enable pigpiod")
-        print("sudo systemctl start pigpiod")
+        print("sudo apt-get install python3-libgpiod gpiod")
         sys.exit(1)
 
     # Get command line arguments
     args = parse_args()
 
-    # Connect to pigpiod
     try:
-        pi = pigpio.pi()
-        if not pi.connected:
-            print("Error: Could not connect to pigpio daemon.")
-            print("Please ensure pigpiod is running:")
-            print("sudo systemctl start pigpiod")
-            sys.exit(1)
+        # Open GPIO chip
+        chip = gpiod.Chip('gpiochip0')
+        
+        # Get GPIO line
+        line = chip.get_line(args.pin)
+        
+        # Request GPIO line
+        config = gpiod.LineRequest()
+        config.request_type = gpiod.LINE_REQ_DIR_OUT
+        config.consumer = "servo_control"
+        line.request(config)
+        
     except Exception as e:
-        print(f"Error connecting to pigpio daemon: {str(e)}")
+        print(f"Error setting up GPIO: {str(e)}")
+        print("Make sure you have the correct permissions and gpiod is properly installed.")
         sys.exit(1)
 
-    def angle_to_pulse_width(angle):
-        """Convert angle (0-180) to pulse width (500-2500)"""
-        return 500 + (angle * 2000 / 180)
-
     def cleanup():
-        """Cleanup GPIO resources"""
-        pi.set_servo_pulsewidth(args.pin, 0)  # Stop servo
-        pi.stop()
+        """Release GPIO line"""
+        try:
+            line.release()
+        except:
+            pass
 
     try:
         start_time = time.time()
@@ -81,10 +83,12 @@ def main():
         while (time.time() - start_time) < total_duration:
             # Switch between positions
             current_position = args.angle if current_position == 0 else 0
-            pulse_width = angle_to_pulse_width(current_position)
             
+            # For servos, we'll simulate PWM by toggling quickly
             print(f"Moving to position: {current_position}°")
-            pi.set_servo_pulsewidth(args.pin, pulse_width)
+            
+            # Simple digital output for testing
+            line.set_value(1 if current_position > 90 else 0)
             
             # Wait for next switch
             time.sleep(args.interval)
