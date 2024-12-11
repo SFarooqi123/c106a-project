@@ -3,6 +3,7 @@ import time
 import argparse
 import sys
 import platform
+import os
 
 def parse_args():
     """Parse command line arguments."""
@@ -16,6 +17,12 @@ def parse_args():
     return parser.parse_args()
 
 def main():
+    # Check if running as root
+    if os.geteuid() != 0:
+        print("Error: This script must be run as root (sudo)")
+        print("Please run: sudo python3 servo_control.py")
+        sys.exit(1)
+
     # Check if running on Raspberry Pi
     if not platform.machine().startswith('arm'):
         print("Error: This script must be run on a Raspberry Pi")
@@ -26,8 +33,16 @@ def main():
     try:
         import RPi.GPIO as GPIO
     except RuntimeError as e:
-        print("Error: Could not import RPi.GPIO. Are you running on a Raspberry Pi?")
-        print(f"Error details: {str(e)}")
+        print("\nError: Could not access GPIO.")
+        print("Please try the following:")
+        print("1. Make sure you're running as root:")
+        print("   sudo python3 servo_control.py")
+        print("\n2. Make sure you're in the gpio group:")
+        print("   sudo usermod -a -G gpio $USER")
+        print("\n3. Make sure GPIO is enabled:")
+        print("   sudo raspi-config")
+        print("   Navigate to: Interface Options > GPIO > Enable")
+        print(f"\nError details: {str(e)}")
         sys.exit(1)
     except ImportError:
         print("Error: RPi.GPIO module not found. Please install it with:")
@@ -43,8 +58,16 @@ def main():
     args = parse_args()
 
     # Set up GPIO using BCM numbering
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
+    try:
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+    except Exception as e:
+        print("\nError setting up GPIO mode.")
+        print("Please make sure GPIO is properly configured:")
+        print("1. Run: sudo raspi-config")
+        print("2. Navigate to: Interface Options > GPIO > Enable")
+        print(f"\nError details: {str(e)}")
+        sys.exit(1)
 
     # Define all available GPIO pins (excluding special purpose pins)
     gpio_pins = [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
@@ -53,9 +76,19 @@ def main():
         """Set up all pins as PWM outputs."""
         servos = {}
         for pin in gpio_pins:
-            GPIO.setup(pin, GPIO.OUT)
-            servos[pin] = GPIO.PWM(pin, 50)  # 50Hz frequency
-            servos[pin].start(7.5)  # Start at middle position
+            try:
+                GPIO.setup(pin, GPIO.OUT)
+                servos[pin] = GPIO.PWM(pin, 50)  # 50Hz frequency
+                servos[pin].start(7.5)  # Start at middle position
+            except Exception as e:
+                print(f"\nError setting up GPIO pin {pin}")
+                print("Please make sure:")
+                print("1. The pin is not in use by another process")
+                print("2. You have permission to access GPIO")
+                print(f"\nError details: {str(e)}")
+                # Clean up any servos we managed to set up
+                cleanup_servos(servos)
+                sys.exit(1)
         return servos
 
     def angle_to_duty(angle):
@@ -64,9 +97,12 @@ def main():
 
     def cleanup_servos(servos):
         """Stop all servos and clean up GPIO."""
-        for servo in servos.values():
-            servo.stop()
-        GPIO.cleanup()
+        try:
+            for servo in servos.values():
+                servo.stop()
+            GPIO.cleanup()
+        except Exception as e:
+            print(f"Warning: Error during cleanup: {str(e)}")
 
     def switch_positions(servos, duration_minutes, interval, max_angle):
         """Switch servos between two positions."""
