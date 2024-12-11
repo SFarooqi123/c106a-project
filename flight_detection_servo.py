@@ -56,19 +56,17 @@ def init_camera(exposure):
                     
                     # Set exposure
                     cap.set(cv2.CAP_PROP_EXPOSURE, exposure)
-                    print(f"Set exposure to: {exposure}")
                     
-                    # Try to read a test frame
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        print(f"Successfully initialized camera with backend {backend} at index {index}")
-                        print(f"Frame size: {frame.shape}")
-                        return cap
-                    else:
-                        print(f"Camera opened but couldn't read frame with backend {backend} at index {index}")
-                        cap.release()
-                else:
-                    print(f"Failed to open camera with backend {backend} at index {index}")
+                    # Set buffer size to 1 to reduce latency
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    
+                    # Set FPS to maximum
+                    cap.set(cv2.CAP_PROP_FPS, 30)
+                    
+                    print(f"Successfully initialized camera with backend {backend} at index {index}")
+                    print(f"FPS: {cap.get(cv2.CAP_PROP_FPS)}")
+                    print(f"Buffer size: {cap.get(cv2.CAP_PROP_BUFFERSIZE)}")
+                    return cap
             except Exception as e:
                 print(f"Error with backend {backend} at index {index}: {str(e)}")
                 continue
@@ -180,44 +178,53 @@ def main():
     last_capture_time = start_time
     last_servo_move = start_time - SERVO_COOLDOWN  # Allow immediate first move
     servo_at_min = True  # Track if servo is at min position
+    frame_count = 0
+    fps_time = start_time
     
     try:
         while (time.time() - start_time) < total_duration:
-            # Check if it's time for next capture
             current_time = time.time()
+            
+            # Calculate and display FPS every second
+            frame_count += 1
+            if current_time - fps_time >= 1.0:
+                fps = frame_count / (current_time - fps_time)
+                print(f"FPS: {fps:.2f}")
+                frame_count = 0
+                fps_time = current_time
+            
+            # Capture frame immediately without waiting
+            ret, frame = camera.read()
+            if not ret:
+                print("Failed to grab frame")
+                continue
+            
+            # Swap red and blue channels for correct color
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Detect target color
+            detected, processed_frame, mask, detection_info = detect_color(frame)
+            
+            # Control servo if blob detected and cooldown period has passed
+            servo_moved = False
+            if detected and h is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
+                if servo_at_min:
+                    lgpio.tx_pwm(h, GPIO_PIN, FREQ, MAX_DUTY)
+                    servo_at_min = False
+                    print("Blob detected! Moving servo to max position")
+                else:
+                    lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)
+                    servo_at_min = True
+                    print("Returning servo to min position")
+                last_servo_move = current_time
+                servo_moved = True
+            
+            # Save frame if needed (based on interval)
             if (current_time - last_capture_time) >= args.interval:
-                # Capture frame
-                ret, frame = camera.read()
-                if not ret:
-                    print("Failed to grab frame")
-                    continue
-                
-                # Swap red and blue channels for correct color
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
-                # Detect target color
-                detected, processed_frame, mask, detection_info = detect_color(frame)
-                
-                # Control servo if blob detected and cooldown period has passed
-                servo_moved = False
-                if detected and h is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
-                    if servo_at_min:
-                        lgpio.tx_pwm(h, GPIO_PIN, FREQ, MAX_DUTY)
-                        servo_at_min = False
-                        print("Blob detected! Moving servo to max position")
-                    else:
-                        lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)
-                        servo_at_min = True
-                        print("Returning servo to min position")
-                    last_servo_move = current_time
-                    servo_moved = True
-                
-                # Generate timestamp and filename
                 timestamp = datetime.datetime.now()
                 filename = f"frame_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
                 filepath = session_dir / filename
                 
-                # Save frame if detection criteria met
                 if not args.detections_only or detected:
                     if save_image(processed_frame, str(filepath)):
                         print(f"Saved frame to {filepath}")
@@ -229,13 +236,11 @@ def main():
                                 f.write(f"{timestamp.isoformat()},{filepath},True,{cx},{cy},{area},{servo_moved}\n")
                             else:
                                 f.write(f"{timestamp.isoformat()},{filepath},False,,,,False\n")
-                    else:
-                        print(f"Failed to save frame to {filepath}")
                 
                 last_capture_time = current_time
             
-            # Small sleep to prevent CPU overload
-            time.sleep(0.1)
+            # Small sleep to prevent CPU overload, but much shorter than before
+            time.sleep(0.01)  # 10ms delay instead of 100ms
             
     except KeyboardInterrupt:
         print("\nStopping capture")
