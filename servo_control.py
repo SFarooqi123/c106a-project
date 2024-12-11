@@ -9,7 +9,7 @@ TOTAL_DURATION = TOTAL_DURATION_MINUTES * 60  # Total time in seconds to run the
 SWEEP_STEP = 10     # Step size for servo movement in degrees
 SWEEP_DELAY = 0.5   # Delay between each angle change in seconds
 MIN_ANGLE = 0       # Minimum angle for servo
-MAX_ANGLE = 180     # Maximum angle for servo
+MAX_ANGLE = 10     # Maximum angle for servo
 MIN_DUTY = 2.5      # Duty cycle for 0 degrees
 MAX_DUTY = 12.5     # Duty cycle for 180 degrees
 
