@@ -1,0 +1,10 @@
+# HSV Tuner Log
+# Format: timestamp, HSV_MIN, HSV_MAX, MIN_AREA, MAX_AREA
+
+
+# 2024-12-10 23:10:33
+HSV_MIN = np.array([140, 153, 121], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([179, 255, 255], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = 5112    # Minimum area to consider a valid detection
+MAX_AREA = 50000  # Maximum area to consider a valid detection
+#--------------------------------------------------------------------------------
