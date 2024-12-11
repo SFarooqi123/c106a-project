@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import cv2
 import numpy as np
 import argparse
@@ -9,6 +10,35 @@ import os
 import time
 import signal
 import atexit
+
+# Configuration Constants
+WINDOW_NAMES = ['Original', 'Mask', 'Result', 'Controls']
+
+# Camera Configuration
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
+CAMERA_FPS = 30
+CAMERA_BUFFER_SIZE = 1
+
+# HSV and Area Defaults
+HSV_PARAMS = [
+    ('H min', 0, 179),
+    ('H max', 179, 179),
+    ('S min', 0, 255),
+    ('S max', 255, 255),
+    ('V min', 0, 255),
+    ('V max', 255, 255),
+    ('Area min', 100, 10000),
+    ('Area max', 500, 100000)
+]
+
+# File Configuration
+CONFIG_FILE = 'hsv_tuner_config.json'
+LOG_FILE = 'hsv_values_log.txt'
+
+# Default screen resolution if cannot detect
+DEFAULT_SCREEN_WIDTH = 1920
+DEFAULT_SCREEN_HEIGHT = 1080
 
 def nothing(x):
     pass
@@ -33,8 +63,8 @@ class HSVTuner:
                 print("Error: Could not open camera")
                 sys.exit(1)
             # Set camera resolution
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
         else:
             # Load all image files
             self.photo_files = [f for f in self.photo_dir.iterdir() 
@@ -55,40 +85,38 @@ class HSVTuner:
             self.screen_width = screen.width
             self.screen_height = screen.height
         except:
-            self.screen_width = 1920
-            self.screen_height = 1080
+            self.screen_width = DEFAULT_SCREEN_WIDTH
+            self.screen_height = DEFAULT_SCREEN_HEIGHT
         
         # Create windows with specific sizes and positions
         window_width = self.screen_width // 3
         window_height = (self.screen_height - 100)  # Leave space for controls
         
-        cv2.namedWindow('Original', cv2.WINDOW_NORMAL)
-        cv2.namedWindow('Mask', cv2.WINDOW_NORMAL)
-        cv2.namedWindow('Result', cv2.WINDOW_NORMAL)
-        cv2.namedWindow('Controls', cv2.WINDOW_NORMAL)
+        cv2.namedWindow(WINDOW_NAMES[0], cv2.WINDOW_NORMAL)
+        cv2.namedWindow(WINDOW_NAMES[1], cv2.WINDOW_NORMAL)
+        cv2.namedWindow(WINDOW_NAMES[2], cv2.WINDOW_NORMAL)
+        cv2.namedWindow(WINDOW_NAMES[3], cv2.WINDOW_NORMAL)
         
         # Set window sizes and positions
-        cv2.resizeWindow('Original', window_width, window_height)
-        cv2.resizeWindow('Mask', window_width, window_height)
-        cv2.resizeWindow('Result', window_width, window_height)
-        cv2.resizeWindow('Controls', self.screen_width, 100)
+        cv2.resizeWindow(WINDOW_NAMES[0], window_width, window_height)
+        cv2.resizeWindow(WINDOW_NAMES[1], window_width, window_height)
+        cv2.resizeWindow(WINDOW_NAMES[2], window_width, window_height)
+        cv2.resizeWindow(WINDOW_NAMES[3], self.screen_width, 100)
         
-        cv2.moveWindow('Original', 0, 0)
-        cv2.moveWindow('Mask', window_width, 0)
-        cv2.moveWindow('Result', 2 * window_width, 0)
-        cv2.moveWindow('Controls', 0, window_height)
+        cv2.moveWindow(WINDOW_NAMES[0], 0, 0)
+        cv2.moveWindow(WINDOW_NAMES[1], window_width, 0)
+        cv2.moveWindow(WINDOW_NAMES[2], 2 * window_width, 0)
+        cv2.moveWindow(WINDOW_NAMES[3], 0, window_height)
         
-        # Create trackbars
-        params = [
-            ('H min', 0, 179), ('H max', 179, 179),
-            ('S min', 0, 255), ('S max', 255, 255),
-            ('V min', 0, 255), ('V max', 255, 255),
-            ('Area min', 100, 200), ('Area max', 100, 200)  # Reduced area range
-        ]
-        
-        for name, default, max_val in params:
+        # Create trackbars with default values
+        for name, default, max_val in HSV_PARAMS:
+            # Always use default value if none exists or if value is invalid
             value = self.hsv_values.get(name.lower().replace(' ', '_'), default)
-            cv2.createTrackbar(name, 'Controls', value, max_val, nothing)
+            if value < 0:  # Ensure we never use -1
+                value = default
+            cv2.createTrackbar(name, WINDOW_NAMES[3], value, max_val, nothing)
+            # Force an update to the trackbar to ensure it's initialized
+            cv2.setTrackbarPos(name, WINDOW_NAMES[3], value)
     
     def __del__(self):
         if hasattr(self, 'cap') and self.cap is not None:
@@ -102,37 +130,36 @@ class HSVTuner:
     
     def cleanup(self):
         """Save values and clean up resources"""
-        # Save to JSON config
+        # Save to JSON config first
         self.save_config()
         
-        # Save as Python arrays with timestamp
-        h_min = cv2.getTrackbarPos('H min', 'Controls')
-        h_max = cv2.getTrackbarPos('H max', 'Controls')
-        s_min = cv2.getTrackbarPos('S min', 'Controls')
-        s_max = cv2.getTrackbarPos('S max', 'Controls')
-        v_min = cv2.getTrackbarPos('V min', 'Controls')
-        v_max = cv2.getTrackbarPos('V max', 'Controls')
-        area_min = cv2.getTrackbarPos('Area min', 'Controls')
-        area_max = cv2.getTrackbarPos('Area max', 'Controls')
+        # Get current values and ensure no -1 values
+        values = {}
+        for name, default, _ in HSV_PARAMS:
+            value = cv2.getTrackbarPos(name, WINDOW_NAMES[3])
+            if value < 0:
+                value = default
+                # Update trackbar to show correct value
+                cv2.setTrackbarPos(name, WINDOW_NAMES[3], value)
+            values[name] = value
         
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        log_file = 'hsv_values_log.txt'
         
         # Create file with header if it doesn't exist
-        if not os.path.exists(log_file):
-            with open(log_file, 'w') as f:
+        if not os.path.exists(LOG_FILE):
+            with open(LOG_FILE, 'w') as f:
                 f.write("# HSV Tuner Log\n")
                 f.write("# Format: timestamp, HSV_MIN, HSV_MAX, MIN_AREA, MAX_AREA\n\n")
         
-        with open(log_file, 'a') as f:
+        with open(LOG_FILE, 'a') as f:
             f.write(f"\n# {timestamp}\n")
-            f.write(f"HSV_MIN = np.array([{h_min}, {s_min}, {v_min}], dtype=np.uint8)    # Lower bound of target color\n")
-            f.write(f"HSV_MAX = np.array([{h_max}, {s_max}, {v_max}], dtype=np.uint8)  # Upper bound of target color\n")
-            f.write(f"MIN_AREA = {area_min}    # Minimum area to consider a valid detection\n")
-            f.write(f"MAX_AREA = {area_max}  # Maximum area to consider a valid detection\n")
+            f.write(f"HSV_MIN = np.array([{values['H min']}, {values['S min']}, {values['V min']}], dtype=np.uint8)    # Lower bound of target color\n")
+            f.write(f"HSV_MAX = np.array([{values['H max']}, {values['S max']}, {values['V max']}], dtype=np.uint8)  # Upper bound of target color\n")
+            f.write(f"MIN_AREA = {values['Area min']}    # Minimum area to consider a valid detection\n")
+            f.write(f"MAX_AREA = {values['Area max']}  # Maximum area to consider a valid detection\n")
             f.write("#" + "-" * 80 + "\n")  # Separator line
         
-        print(f"Appended HSV values to {log_file}")
+        print(f"Appended HSV values to {LOG_FILE}")
         
         # Release camera if using it
         if hasattr(self, 'cap') and self.cap is not None:
@@ -143,27 +170,45 @@ class HSVTuner:
     
     def load_config(self):
         """Load HSV values from config file"""
-        if os.path.exists('hsv_tuner_config.json'):
-            with open('hsv_tuner_config.json', 'r') as f:
-                config = json.load(f)
-                self.hsv_values = config.get('hsv_values', {})
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                    # Convert loaded values to proper format for trackbars
+                    self.hsv_values = {
+                        'h_min': int(config['hsv_values']['h_min']),
+                        'h_max': int(config['hsv_values']['h_max']),
+                        's_min': int(config['hsv_values']['s_min']),
+                        's_max': int(config['hsv_values']['s_max']),
+                        'v_min': int(config['hsv_values']['v_min']),
+                        'v_max': int(config['hsv_values']['v_max']),
+                        'area_min': int(config['hsv_values']['area_min']),
+                        'area_max': int(config['hsv_values']['area_max'])
+                    }
+                print("Loaded HSV values from config file")
+        except Exception as e:
+            print(f"Warning: Could not load config file: {e}")
+            self.hsv_values = {}  # Use defaults if loading fails
     
     def save_config(self):
         """Save HSV values to config file"""
-        hsv_values = {
-            'h_min': cv2.getTrackbarPos('H min', 'Controls'),
-            'h_max': cv2.getTrackbarPos('H max', 'Controls'),
-            's_min': cv2.getTrackbarPos('S min', 'Controls'),
-            's_max': cv2.getTrackbarPos('S max', 'Controls'),
-            'v_min': cv2.getTrackbarPos('V min', 'Controls'),
-            'v_max': cv2.getTrackbarPos('V max', 'Controls'),
-            'area_min': cv2.getTrackbarPos('Area min', 'Controls'),
-            'area_max': cv2.getTrackbarPos('Area max', 'Controls')
-        }
+        # Get current values from trackbars and ensure no -1 values
+        hsv_values = {}
+        for name, default, _ in HSV_PARAMS:
+            value = cv2.getTrackbarPos(name, WINDOW_NAMES[3])
+            key = name.lower().replace(' ', '_')
+            # Always use default if value is invalid
+            if value < 0:
+                value = default
+                # Update trackbar to show correct value
+                cv2.setTrackbarPos(name, WINDOW_NAMES[3], value)
+            hsv_values[key] = value
         
-        with open('hsv_tuner_config.json', 'w') as f:
+        # Save to config file
+        with open(CONFIG_FILE, 'w') as f:
             json.dump({'hsv_values': hsv_values}, f, indent=4)
-    
+        print(f"Saved HSV values to {CONFIG_FILE}")
+
     def load_image(self, filepath):
         """Load image and convert to RGB"""
         img = cv2.imread(str(filepath))
@@ -249,19 +294,19 @@ class HSVTuner:
                 
                 # Update window titles
                 title = f'Photo {self.current_index + 1}/{len(self.photo_files)}: {current_file.name}'
-                cv2.setWindowTitle('Original', f'Original - {title}')
-                cv2.setWindowTitle('Mask', f'Mask - {title}')
-                cv2.setWindowTitle('Result', f'Result - {title}')
+                cv2.setWindowTitle(WINDOW_NAMES[0], f'Original - {title}')
+                cv2.setWindowTitle(WINDOW_NAMES[1], f'Mask - {title}')
+                cv2.setWindowTitle(WINDOW_NAMES[2], f'Result - {title}')
             
             # Get trackbar positions
-            h_min = cv2.getTrackbarPos('H min', 'Controls')
-            h_max = cv2.getTrackbarPos('H max', 'Controls')
-            s_min = cv2.getTrackbarPos('S min', 'Controls')
-            s_max = cv2.getTrackbarPos('S max', 'Controls')
-            v_min = cv2.getTrackbarPos('V min', 'Controls')
-            v_max = cv2.getTrackbarPos('V max', 'Controls')
-            area_min = cv2.getTrackbarPos('Area min', 'Controls')
-            area_max = cv2.getTrackbarPos('Area max', 'Controls')
+            h_min = cv2.getTrackbarPos('H min', WINDOW_NAMES[3])
+            h_max = cv2.getTrackbarPos('H max', WINDOW_NAMES[3])
+            s_min = cv2.getTrackbarPos('S min', WINDOW_NAMES[3])
+            s_max = cv2.getTrackbarPos('S max', WINDOW_NAMES[3])
+            v_min = cv2.getTrackbarPos('V min', WINDOW_NAMES[3])
+            v_max = cv2.getTrackbarPos('V max', WINDOW_NAMES[3])
+            area_min = cv2.getTrackbarPos('Area min', WINDOW_NAMES[3])
+            area_max = cv2.getTrackbarPos('Area max', WINDOW_NAMES[3])
             
             # Convert to HSV and create mask
             hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
@@ -288,14 +333,14 @@ class HSVTuner:
                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
             
             # Show images
-            cv2.imshow('Original', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-            cv2.imshow('Mask', mask)
-            cv2.imshow('Result', cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
+            cv2.imshow(WINDOW_NAMES[0], cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+            cv2.imshow(WINDOW_NAMES[1], mask)
+            cv2.imshow(WINDOW_NAMES[2], cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
-                self.cleanup()  # Call cleanup instead of just save_config
+                self.save_config()
                 break
             elif key == ord('y'):
                 if self.use_camera:
