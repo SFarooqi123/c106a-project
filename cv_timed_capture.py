@@ -12,8 +12,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Capture photos at timed intervals with color detection.')
     parser.add_argument('-d', '--duration', type=int, default=60,
                       help='Total duration in minutes (default: 60)')
-    parser.add_argument('-i', '--interval', type=float, default=5.0,
-                      help='Capture interval in seconds (default: 5.0)')
+    parser.add_argument('-i', '--interval', type=float, default=1.0,
+                      help='Capture interval in seconds (default: 1.0)')
     parser.add_argument('-e', '--exposure', type=int, default=-6,
                       help='Camera exposure value (default: -6, negative values decrease exposure)')
     parser.add_argument('-o', '--output', type=str, default="captured_photos",

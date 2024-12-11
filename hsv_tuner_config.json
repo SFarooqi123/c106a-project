@@ -1,34 +1,12 @@
 {
-    "window_positions": {
-        "Original": [
-            1292,
-            1166
-        ],
-        "HSV": [
-            470,
-            1034
-        ],
-        "Mask": [
-            3280,
-            -480
-        ],
-        "Result": [
-            2078,
-            1056
-        ],
-        "Controls": [
-            698,
-            1340
-        ]
-    },
     "hsv_values": {
-        "h_min": 82,
+        "h_min": 140,
         "h_max": 179,
-        "s_min": 0,
+        "s_min": 153,
         "s_max": 255,
-        "v_min": 0,
+        "v_min": 121,
         "v_max": 255,
-        "area_min": 100,
-        "area_max": 5000
+        "area_min": 5112,
+        "area_max": 50000
     }
 }

@@ -1,4 +1,6 @@
 # Raspberry Pi Real-Time Object Detection and Tracking
+# Work cited from automaticdai
+# EECS 106A Industry Project Fa24
 
 ![](https://img.shields.io/github/stars/automaticdai/rpi-object-detection) ![](https://img.shields.io/github/forks/automaticdai/rpi-object-detection) ![](https://img.shields.io/github/license/automaticdai/rpi-object-detection)
 
