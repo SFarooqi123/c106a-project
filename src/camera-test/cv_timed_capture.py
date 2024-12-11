@@ -28,15 +28,36 @@ MAX_AREA = 10000  # Maximum area to consider a valid detection
 
 def init_camera():
     """Initialize the camera with specified resolution."""
-    # Try different camera indices
-    for index in range(4):
-        cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            # Set resolution
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-            return cap
-    raise RuntimeError("No camera found!")
+    # Try different backends
+    backends = [cv2.CAP_ANY, cv2.CAP_V4L2, cv2.CAP_GSTREAMER]
+    
+    for backend in backends:
+        print(f"Trying camera backend: {backend}")
+        for index in range(2):  # Try first two camera indices
+            try:
+                cap = cv2.VideoCapture(index, backend)
+                if cap.isOpened():
+                    # Set resolution
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+                    
+                    # Try to read a test frame
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        print(f"Successfully initialized camera with backend {backend} at index {index}")
+                        print(f"Frame size: {frame.shape}")
+                        return cap
+                    else:
+                        print(f"Camera opened but couldn't read frame with backend {backend} at index {index}")
+                        cap.release()
+                else:
+                    print(f"Failed to open camera with backend {backend} at index {index}")
+            except Exception as e:
+                print(f"Error with backend {backend} at index {index}: {str(e)}")
+                continue
+    
+    # If we get here, we couldn't initialize the camera
+    raise RuntimeError("No working camera found! Tried all available backends.")
 
 def save_image(frame, output_path):
     """Save image with proper encoding to avoid libpng warnings."""
@@ -92,9 +113,10 @@ def detect_color(frame):
 
 def main():
     # Initialize the camera
-    camera = init_camera()
-    if camera is None:
-        print("Error: Could not initialize camera")
+    try:
+        camera = init_camera()
+    except RuntimeError as e:
+        print(f"Error: {str(e)}")
         return
     
     # Create output directory if it doesn't exist
