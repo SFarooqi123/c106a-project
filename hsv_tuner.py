@@ -7,6 +7,8 @@ import sys
 import json
 import os
 import time
+import signal
+import atexit
 
 def nothing(x):
     pass
@@ -19,6 +21,10 @@ class HSVTuner:
         self.selected_photos = set()
         self.hsv_values = {}
         self.use_camera = photo_dir is None
+        
+        # Register cleanup handlers
+        atexit.register(self.cleanup)
+        signal.signal(signal.SIGINT, self.signal_handler)
         
         if self.use_camera:
             # Initialize camera
@@ -77,7 +83,7 @@ class HSVTuner:
             ('H min', 0, 179), ('H max', 179, 179),
             ('S min', 0, 255), ('S max', 255, 255),
             ('V min', 0, 255), ('V max', 255, 255),
-            ('Area min', 100, 10000), ('Area max', 5000, 10000)
+            ('Area min', 100, 50000), ('Area max', 5000, 50000)
         ]
         
         for name, default, max_val in params:
@@ -87,6 +93,53 @@ class HSVTuner:
     def __del__(self):
         if hasattr(self, 'cap') and self.cap is not None:
             self.cap.release()
+    
+    def signal_handler(self, sig, frame):
+        """Handle Ctrl+C"""
+        print("\nSaving values and exiting...")
+        self.cleanup()
+        sys.exit(0)
+    
+    def cleanup(self):
+        """Save values and clean up resources"""
+        # Save to JSON config
+        self.save_config()
+        
+        # Save as Python arrays with timestamp
+        h_min = cv2.getTrackbarPos('H min', 'Controls')
+        h_max = cv2.getTrackbarPos('H max', 'Controls')
+        s_min = cv2.getTrackbarPos('S min', 'Controls')
+        s_max = cv2.getTrackbarPos('S max', 'Controls')
+        v_min = cv2.getTrackbarPos('V min', 'Controls')
+        v_max = cv2.getTrackbarPos('V max', 'Controls')
+        area_min = cv2.getTrackbarPos('Area min', 'Controls')
+        area_max = cv2.getTrackbarPos('Area max', 'Controls')
+        
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_file = 'hsv_values_log.txt'
+        
+        # Create file with header if it doesn't exist
+        if not os.path.exists(log_file):
+            with open(log_file, 'w') as f:
+                f.write("# HSV Tuner Log\n")
+                f.write("# Format: timestamp, HSV_MIN, HSV_MAX, MIN_AREA, MAX_AREA\n\n")
+        
+        with open(log_file, 'a') as f:
+            f.write(f"\n# {timestamp}\n")
+            f.write(f"HSV_MIN = np.array([{h_min}, {s_min}, {v_min}], dtype=np.uint8)    # Lower bound of target color\n")
+            f.write(f"HSV_MAX = np.array([{h_max}, {s_max}, {v_max}], dtype=np.uint8)  # Upper bound of target color\n")
+            f.write(f"MIN_AREA = {area_min}    # Minimum area to consider a valid detection\n")
+            f.write(f"MAX_AREA = {area_max}  # Maximum area to consider a valid detection\n")
+            f.write("#" + "-" * 80 + "\n")  # Separator line
+        
+        print(f"Appended HSV values to {log_file}")
+        
+        # Release camera if using it
+        if hasattr(self, 'cap') and self.cap is not None:
+            self.cap.release()
+        
+        # Close all windows
+        cv2.destroyAllWindows()
     
     def load_config(self):
         """Load HSV values from config file"""
