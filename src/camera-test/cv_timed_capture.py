@@ -18,8 +18,8 @@ def parse_args():
                       help='Camera exposure value (default: -6, negative values decrease exposure)')
     parser.add_argument('-o', '--output', type=str, default="captured_photos",
                       help='Output directory for photos (default: captured_photos)')
-    parser.add_argument('--save-all', action='store_true',
-                      help='Save all frames, not just ones with detections')
+    parser.add_argument('--detections-only', action='store_true',
+                      help='Only save frames with color detections (default: save all frames)')
     return parser.parse_args()
 
 # Camera Configuration
@@ -30,7 +30,7 @@ FRAME_HEIGHT = 480
 HSV_MIN = np.array([107, 24, 6], dtype=np.uint8)    # Lower bound of target color
 HSV_MAX = np.array([154, 255, 255], dtype=np.uint8)  # Upper bound of target color
 MIN_AREA = 500    # Minimum area to consider a valid detection
-MAX_AREA = 4000   # Maximum area to consider a valid detection
+MAX_AREA = 50000   # Maximum area to consider a valid detection
 
 def init_camera(exposure):
     """Initialize the camera with specified resolution and exposure."""
@@ -149,7 +149,7 @@ def main():
     print(f"Interval: {args.interval} seconds")
     print(f"Exposure: {args.exposure}")
     print(f"Output directory: {session_dir}")
-    print(f"Saving {'all frames' if args.save_all else 'only frames with detections'}\n")
+    print(f"Saving {'only frames with detections' if args.detections_only else 'all frames'}\n")
     
     start_time = time.time()
     last_capture_time = start_time
@@ -177,7 +177,7 @@ def main():
                 filepath = session_dir / filename
                 
                 # Save frame if detection criteria met
-                if args.save_all or detected:
+                if not args.detections_only or detected:
                     if save_image(processed_frame, str(filepath)):
                         print(f"Saved frame to {filepath}")
                         
