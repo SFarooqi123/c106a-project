@@ -11,7 +11,7 @@ import lgpio
 # Camera Configuration
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
-
+#a
 # HSV Color Detection Configuration
 HSV_MIN = np.array([107, 24, 6], dtype=np.uint8)    # Lower bound of target color
 HSV_MAX = np.array([154, 255, 255], dtype=np.uint8)  # Upper bound of target color
