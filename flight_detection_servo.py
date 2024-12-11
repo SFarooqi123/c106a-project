@@ -6,7 +6,7 @@ import time
 import datetime
 import argparse
 from pathlib import Path
-from gpiozero import Servo
+import lgpio
 
 # Camera Configuration
 FRAME_WIDTH = 640
@@ -21,6 +21,9 @@ MAX_AREA = 50000   # Maximum area to consider a valid detection
 # Servo Configuration
 GPIO_PIN = 17          # GPIO pin number for servo
 SERVO_COOLDOWN = 1.0   # Time to wait between servo movements (seconds)
+FREQ = 50             # PWM frequency (Hz)
+MIN_DUTY = 2.5        # Duty cycle for 0 degrees
+MAX_DUTY = 12.5       # Duty cycle for 180 degrees
 
 def parse_args():
     """Parse command line arguments."""
@@ -73,12 +76,15 @@ def init_camera(exposure):
     raise RuntimeError("No working camera found! Tried all available backends.")
 
 def init_servo():
-    """Initialize the servo motor"""
+    """Initialize the servo motor using lgpio"""
     try:
-        servo = Servo(GPIO_PIN)
-        servo.min()  # Move to minimum position (-1)
+        h = lgpio.gpiochip_open(0)
+        # Configure GPIO pin for PWM
+        lgpio.gpio_claim_output(h, GPIO_PIN)
+        # Start PWM at minimum position
+        lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)
         print(f"Initialized servo on GPIO {GPIO_PIN}")
-        return servo
+        return h
     except Exception as e:
         print(f"Failed to initialize servo: {str(e)}")
         return None
@@ -142,8 +148,8 @@ def main():
     # Initialize the camera and servo
     try:
         camera = init_camera(args.exposure)
-        servo = init_servo()
-        if servo is None:
+        h = init_servo()
+        if h is None:
             print("Warning: Servo initialization failed, continuing without servo control")
     except RuntimeError as e:
         print(f"Error: {str(e)}")
@@ -194,13 +200,13 @@ def main():
                 
                 # Control servo if blob detected and cooldown period has passed
                 servo_moved = False
-                if detected and servo is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
+                if detected and h is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
                     if servo_at_min:
-                        servo.max()  # Move to maximum position (1)
+                        lgpio.tx_pwm(h, GPIO_PIN, FREQ, MAX_DUTY)
                         servo_at_min = False
                         print("Blob detected! Moving servo to max position")
                     else:
-                        servo.min()  # Move to minimum position (-1)
+                        lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)
                         servo_at_min = True
                         print("Returning servo to min position")
                     last_servo_move = current_time
@@ -236,9 +242,10 @@ def main():
     finally:
         # Cleanup
         camera.release()
-        if servo is not None:
-            servo.min()  # Return to minimum position
-            servo.close()
+        if h is not None:
+            lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)  # Return to min position
+            lgpio.gpio_free(h, GPIO_PIN)
+            lgpio.gpiochip_close(h)
         print("Cleanup completed")
 
 if __name__ == "__main__":
