@@ -24,6 +24,9 @@ SERVO_COOLDOWN = 1.0   # Time to wait between servo movements (seconds)
 FREQ = 50             # PWM frequency (Hz)
 MIN_DUTY = 2.5        # Duty cycle for 0 degrees
 MAX_DUTY = 12.5       # Duty cycle for 180 degrees
+OPEN_ANGLE = 180      # Angle for opening servo
+CLOSE_ANGLE = 0       # Angle for closing servo
+OPEN_TIME = 5         # Time to keep servo open in seconds
 
 def parse_args():
     """Parse command line arguments."""
@@ -87,6 +90,11 @@ def init_servo():
         print(f"Failed to initialize servo: {str(e)}")
         return None
 
+def move_servo(h, angle):
+    """Move servo to specified angle"""
+    duty_cycle = MIN_DUTY + (MAX_DUTY - MIN_DUTY) * angle / 180
+    lgpio.tx_pwm(h, GPIO_PIN, FREQ, duty_cycle)
+
 def save_image(frame, output_path):
     """Save image with proper encoding to avoid libpng warnings."""
     if len(frame.shape) == 3:  # Color image
@@ -133,9 +141,9 @@ def detect_color(frame):
             cv2.putText(frame, f'Area: {int(max_area)}', (cx, cy - 10),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             
-            return True, frame, mask, (cx, cy, max_area)
+            return (cx, cy, max_area)
     
-    return False, frame, mask, None
+    return None
 
 def main():
     args = parse_args()
@@ -202,22 +210,19 @@ def main():
             # Swap red and blue channels for correct color
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            # Detect target color
-            detected, processed_frame, mask, detection_info = detect_color(frame)
+            # Process the frame
+            detection_info = detect_color(frame)
+            detection_found = detection_info is not None
             
-            # Control servo if blob detected and cooldown period has passed
-            servo_moved = False
-            if detected and h is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
-                if servo_at_min:
-                    lgpio.tx_pwm(h, GPIO_PIN, FREQ, MAX_DUTY)
-                    servo_at_min = False
-                    print("Blob detected! Moving servo to max position")
-                else:
-                    lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)
-                    servo_at_min = True
-                    print("Returning servo to min position")
-                last_servo_move = current_time
-                servo_moved = True
+            # Handle servo control based on detection
+            if h is not None:
+                if detection_found:
+                    # Open servo when blob detected
+                    move_servo(h, OPEN_ANGLE)
+                    last_servo_move = current_time
+                elif current_time - last_servo_move >= OPEN_TIME:
+                    # Close servo after OPEN_TIME seconds
+                    move_servo(h, CLOSE_ANGLE)
             
             # Save frame if needed (based on interval)
             if (current_time - last_capture_time) >= args.interval:
@@ -225,15 +230,15 @@ def main():
                 filename = f"frame_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
                 filepath = session_dir / filename
                 
-                if not args.detections_only or detected:
-                    if save_image(processed_frame, str(filepath)):
+                if not args.detections_only or detection_found:
+                    if save_image(frame, str(filepath)):
                         print(f"Saved frame to {filepath}")
                         
                         # Log the capture with servo movement info
                         with open(log_path, "a") as f:
-                            if detected:
+                            if detection_found:
                                 cx, cy, area = detection_info
-                                f.write(f"{timestamp.isoformat()},{filepath},True,{cx},{cy},{area},{servo_moved}\n")
+                                f.write(f"{timestamp.isoformat()},{filepath},True,{cx},{cy},{area},True\n")
                             else:
                                 f.write(f"{timestamp.isoformat()},{filepath},False,,,,False\n")
                 
@@ -248,7 +253,7 @@ def main():
         # Cleanup
         camera.release()
         if h is not None:
-            lgpio.tx_pwm(h, GPIO_PIN, FREQ, MIN_DUTY)  # Return to min position
+            move_servo(h, CLOSE_ANGLE)  # Return to min position
             lgpio.gpio_free(h, GPIO_PIN)
             lgpio.gpiochip_close(h)
         print("Cleanup completed")
