@@ -10,6 +10,7 @@ from pathlib import Path
 # Camera Configuration
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
+CAMERA_EXPOSURE = -6  # Negative values decrease exposure (make image darker)
 
 # Timing Configuration
 CAPTURE_INTERVAL = 5  # Time between captures in seconds
@@ -40,6 +41,10 @@ def init_camera():
                     # Set resolution
                     cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
                     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+                    
+                    # Set exposure
+                    cap.set(cv2.CAP_PROP_EXPOSURE, CAMERA_EXPOSURE)
+                    print(f"Set exposure to: {CAMERA_EXPOSURE}")
                     
                     # Try to read a test frame
                     ret, frame = cap.read()
