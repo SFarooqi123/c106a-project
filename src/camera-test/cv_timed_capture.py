@@ -22,10 +22,10 @@ OUTPUT_DIR = "captured_photos"
 SAVE_DETECTED_ONLY = True  # Only save photos where target color is detected
 
 # HSV Color Detection Configuration
-HSV_MIN = np.array([108, 10, 73], dtype=np.uint8)    # Lower bound of target color
-HSV_MAX = np.array([162, 255, 248], dtype=np.uint8)  # Upper bound of target color
-MIN_AREA = 112    # Minimum area to consider a valid detection
-MAX_AREA = 10000  # Maximum area to consider a valid detection
+HSV_MIN = np.array([107, 24, 6], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([154, 255, 255], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = 500    # Minimum area to consider a valid detection
+MAX_AREA = 4000  # Maximum area to consider a valid detection
 
 def init_camera():
     """Initialize the camera with specified resolution."""
