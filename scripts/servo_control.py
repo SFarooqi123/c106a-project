@@ -29,24 +29,14 @@ def main():
         print("Current platform:", platform.machine())
         sys.exit(1)
         
-    # Import RPi.GPIO only if on Raspberry Pi
+    # Import gpiod library
     try:
-        import RPi.GPIO as GPIO
-    except RuntimeError as e:
-        print("\nError: Could not access GPIO.")
-        print("Please try the following:")
-        print("1. Make sure you're running as root:")
-        print("   sudo python3 servo_control.py")
-        print("\n2. Make sure you're in the gpio group:")
-        print("   sudo usermod -a -G gpio $USER")
-        print("\n3. Make sure GPIO is enabled:")
-        print("   sudo raspi-config")
-        print("   Navigate to: Interface Options > GPIO > Enable")
-        print(f"\nError details: {str(e)}")
-        sys.exit(1)
+        import gpiod
     except ImportError:
-        print("Error: RPi.GPIO module not found. Please install it with:")
-        print("sudo apt-get update && sudo apt-get install python3-rpi.gpio")
+        print("\nError: Could not import gpiod.")
+        print("Please install required packages:")
+        print("sudo apt-get update")
+        print("sudo apt-get install gpiod python3-libgpiod")
         sys.exit(1)
 
     # Servo Configuration
@@ -57,54 +47,42 @@ def main():
     # Get command line arguments
     args = parse_args()
 
-    # Set up GPIO using BCM numbering
+    # Get GPIO chip
     try:
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
+        chip = gpiod.Chip('gpiochip0')
     except Exception as e:
-        print("\nError setting up GPIO mode.")
-        print("Please make sure GPIO is properly configured:")
-        print("1. Run: sudo raspi-config")
-        print("2. Navigate to: Interface Options > GPIO > Enable")
-        print(f"\nError details: {str(e)}")
+        print(f"Error accessing GPIO chip: {str(e)}")
+        print("Make sure you have the correct permissions and gpiod is properly installed.")
         sys.exit(1)
 
     # Define all available GPIO pins (excluding special purpose pins)
     gpio_pins = [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
-
-    def setup_servos():
-        """Set up all pins as PWM outputs."""
-        servos = {}
+    
+    # Configure GPIO lines
+    lines = []
+    try:
         for pin in gpio_pins:
+            line = chip.get_line(pin)
+            line.request(consumer="servo_control", type=gpiod.LINE_REQ_DIR_OUT)
+            lines.append(line)
+    except Exception as e:
+        print(f"Error configuring GPIO lines: {str(e)}")
+        sys.exit(1)
+
+    def angle_to_value(angle):
+        """Convert angle to GPIO value (0 or 1)."""
+        # Simplified PWM simulation using digital signals
+        return 1 if angle > 90 else 0
+
+    def cleanup():
+        """Release all GPIO lines."""
+        for line in lines:
             try:
-                GPIO.setup(pin, GPIO.OUT)
-                servos[pin] = GPIO.PWM(pin, 50)  # 50Hz frequency
-                servos[pin].start(7.5)  # Start at middle position
+                line.release()
             except Exception as e:
-                print(f"\nError setting up GPIO pin {pin}")
-                print("Please make sure:")
-                print("1. The pin is not in use by another process")
-                print("2. You have permission to access GPIO")
-                print(f"\nError details: {str(e)}")
-                # Clean up any servos we managed to set up
-                cleanup_servos(servos)
-                sys.exit(1)
-        return servos
+                print(f"Warning: Error during cleanup: {str(e)}")
 
-    def angle_to_duty(angle):
-        """Convert angle to duty cycle."""
-        return MIN_DUTY + (angle/180.0 * (MAX_DUTY - MIN_DUTY))
-
-    def cleanup_servos(servos):
-        """Stop all servos and clean up GPIO."""
-        try:
-            for servo in servos.values():
-                servo.stop()
-            GPIO.cleanup()
-        except Exception as e:
-            print(f"Warning: Error during cleanup: {str(e)}")
-
-    def switch_positions(servos, duration_minutes, interval, max_angle):
+    def switch_positions(duration_minutes, interval, max_angle):
         """Switch servos between two positions."""
         total_duration = duration_minutes * 60  # Convert to seconds
         
@@ -121,11 +99,11 @@ def main():
             while (time.time() - start_time) < total_duration:
                 # Switch position
                 current_position = max_angle if current_position == POSITION_A else POSITION_A
-                duty = angle_to_duty(current_position)
+                value = angle_to_value(current_position)
                 
                 print(f"Moving to position: {current_position}°")
-                for servo in servos.values():
-                    servo.ChangeDutyCycle(duty)
+                for line in lines:
+                    line.set_value(value)
                 
                 # Wait for next switch
                 time.sleep(interval)
@@ -133,12 +111,11 @@ def main():
         except KeyboardInterrupt:
             print("\nStopping servo movement")
         finally:
-            cleanup_servos(servos)
+            cleanup()
 
     # Run the main control loop
     try:
-        servos = setup_servos()
-        switch_positions(servos, args.duration, args.interval, args.angle)
+        switch_positions(args.duration, args.interval, args.angle)
     except Exception as e:
         print(f"Error during servo control: {str(e)}")
         sys.exit(1)
