@@ -1,12 +1,12 @@
 {
     "hsv_values": {
-        "h_min": 140,
+        "h_min": 28,
         "h_max": 179,
-        "s_min": 153,
+        "s_min": 0,
         "s_max": 255,
-        "v_min": 121,
+        "v_min": 0,
         "v_max": 255,
-        "area_min": 5112,
-        "area_max": 50000
+        "area_min": 100,
+        "area_max": 5000
     }
 }
