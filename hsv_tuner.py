@@ -6,26 +6,38 @@ from pathlib import Path
 import sys
 import json
 import os
+import time
 
 def nothing(x):
     pass
 
 class HSVTuner:
-    def __init__(self, photo_dir, output_dir=None):
-        self.photo_dir = Path(photo_dir)
+    def __init__(self, photo_dir=None, output_dir=None):
+        self.photo_dir = Path(photo_dir) if photo_dir else None
         self.output_dir = Path(output_dir) if output_dir else None
         self.current_index = 0
         self.selected_photos = set()
         self.hsv_values = {}
+        self.use_camera = photo_dir is None
         
-        # Load all image files
-        self.photo_files = [f for f in self.photo_dir.iterdir() 
-                          if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp'}]
-        self.photo_files.sort()
-        
-        if not self.photo_files:
-            print("No photos found in directory!")
-            sys.exit(1)
+        if self.use_camera:
+            # Initialize camera
+            self.cap = cv2.VideoCapture(0)
+            if not self.cap.isOpened():
+                print("Error: Could not open camera")
+                sys.exit(1)
+            # Set camera resolution
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        else:
+            # Load all image files
+            self.photo_files = [f for f in self.photo_dir.iterdir() 
+                              if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp'}]
+            self.photo_files.sort()
+            
+            if not self.photo_files:
+                print("No photos found in directory!")
+                sys.exit(1)
         
         # Load saved configuration
         self.load_config()
@@ -71,6 +83,10 @@ class HSVTuner:
         for name, default, max_val in params:
             value = self.hsv_values.get(name.lower().replace(' ', '_'), default)
             cv2.createTrackbar(name, 'Controls', value, max_val, nothing)
+    
+    def __del__(self):
+        if hasattr(self, 'cap') and self.cap is not None:
+            self.cap.release()
     
     def load_config(self):
         """Load HSV values from config file"""
@@ -121,41 +137,68 @@ class HSVTuner:
         
         print(f"\nSaved to {self.output_dir}")
     
+    def get_next_frame(self):
+        """Get next frame from either camera or image files"""
+        if self.use_camera:
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Error: Could not read from camera")
+                return None
+            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        else:
+            if not (0 <= self.current_index < len(self.photo_files)):
+                print("Error: Invalid photo index")
+                return None
+            
+            current_file = self.photo_files[self.current_index]
+            img = self.load_image(current_file)
+            if img is None:
+                print(f"Error: Could not load image {current_file}")
+                self.current_index += 1
+                return None
+            
+            return img, current_file
+    
     def show_images(self):
         """Display images and handle keyboard input"""
         print("\nControls:")
-        print("'y' - Save current image, mask, and result to output directory")
-        print("'n' or Space - Next photo")
-        print("'b' - Previous photo")
-        print("Type a number to jump to that image")
+        if not self.use_camera:
+            print("'n' or Space - Next photo")
+            print("'b' - Previous photo")
+            print("Type a number to jump to that image")
+        print("'y' - Save current frame/image")
         print("'q' - Quit (saves HSV values)")
-        print(f"\nViewing photos from: {self.photo_dir}")
+        if self.photo_dir:
+            print(f"\nViewing photos from: {self.photo_dir}")
         if self.output_dir:
             print(f"Output directory: {self.output_dir}")
         print()
         
         number_buffer = ""
         while True:
-            if not (0 <= self.current_index < len(self.photo_files)):
-                print("Error: Invalid photo index")
-                break
+            # Get frame from camera or image file
+            if self.use_camera:
+                frame_data = self.get_next_frame()
+                if frame_data is None:
+                    break
+                img = frame_data
+                current_file = None
+            else:
+                frame_data = self.get_next_frame()
+                if frame_data is None:
+                    break
+                img, current_file = frame_data
+            
+            # Show current image info
+            if not self.use_camera:
+                print(f"\rImage {self.current_index + 1}/{len(self.photo_files)}: {current_file.name}", end="")
+                sys.stdout.flush()
                 
-            current_file = self.photo_files[self.current_index]
-            img = self.load_image(current_file)
-            if img is None:
-                print(f"Error: Could not load image {current_file}")
-                self.current_index += 1
-                continue
-            
-            # Show current image index and filename
-            print(f"\rImage {self.current_index + 1}/{len(self.photo_files)}: {current_file.name}", end="")
-            sys.stdout.flush()
-            
-            # Update window titles
-            title = f'Photo {self.current_index + 1}/{len(self.photo_files)}: {current_file.name}'
-            cv2.setWindowTitle('Original', f'Original - {title}')
-            cv2.setWindowTitle('Mask', f'Mask - {title}')
-            cv2.setWindowTitle('Result', f'Result - {title}')
+                # Update window titles
+                title = f'Photo {self.current_index + 1}/{len(self.photo_files)}: {current_file.name}'
+                cv2.setWindowTitle('Original', f'Original - {title}')
+                cv2.setWindowTitle('Mask', f'Mask - {title}')
+                cv2.setWindowTitle('Result', f'Result - {title}')
             
             # Get trackbar positions
             h_min = cv2.getTrackbarPos('H min', 'Controls')
@@ -202,34 +245,42 @@ class HSVTuner:
                 self.save_config()
                 break
             elif key == ord('y'):
-                self.save_current_mask(img, mask, result, current_file.name)
-                self.selected_photos.add(current_file.name)
-            elif key == ord('n') or key == ord(' '):
-                self.current_index = (self.current_index + 1) % len(self.photo_files)
-            elif key == ord('b'):
-                self.current_index = (self.current_index - 1) % len(self.photo_files)
-            elif 48 <= key <= 57:  # Number keys 0-9
-                number_buffer += chr(key)
-            elif key == 13:  # Enter key
-                if number_buffer:
-                    try:
-                        new_index = int(number_buffer) - 1
-                        if 0 <= new_index < len(self.photo_files):
-                            self.current_index = new_index
-                    except ValueError:
-                        pass
-                    number_buffer = ""
+                if self.use_camera:
+                    filename = f"frame_{int(time.time())}.jpg"
+                else:
+                    filename = current_file.name
+                self.save_current_mask(img, mask, result, filename)
+                if not self.use_camera:
+                    self.selected_photos.add(filename)
+            elif not self.use_camera:  # Photo navigation commands
+                if key == ord('n') or key == ord(' '):
+                    self.current_index = (self.current_index + 1) % len(self.photo_files)
+                elif key == ord('b'):
+                    self.current_index = (self.current_index - 1) % len(self.photo_files)
+                elif 48 <= key <= 57:  # Number keys 0-9
+                    number_buffer += chr(key)
+                elif key == 13:  # Enter key
+                    if number_buffer:
+                        try:
+                            new_index = int(number_buffer) - 1
+                            if 0 <= new_index < len(self.photo_files):
+                                self.current_index = new_index
+                        except ValueError:
+                            pass
+                        number_buffer = ""
         
         cv2.destroyAllWindows()
+        if self.use_camera:
+            self.cap.release()
 
 def main():
     parser = argparse.ArgumentParser(description='HSV color tuner with photo navigation')
-    parser.add_argument('photo_dir', help='Directory containing photos to view')
+    parser.add_argument('photo_dir', nargs='?', help='Directory containing photos to view (optional)')
     parser.add_argument('-o', '--output', help='Output directory for saved masks')
     
     args = parser.parse_args()
     
-    if not Path(args.photo_dir).is_dir():
+    if args.photo_dir and not Path(args.photo_dir).is_dir():
         print(f"Error: {args.photo_dir} is not a valid directory")
         sys.exit(1)
     
