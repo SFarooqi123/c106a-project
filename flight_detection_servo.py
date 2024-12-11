@@ -6,6 +6,23 @@ import time
 import datetime
 import argparse
 from pathlib import Path
+from gpiozero import Servo
+
+# Camera Configuration
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
+
+# HSV Color Detection Configuration
+HSV_MIN = np.array([107, 24, 6], dtype=np.uint8)    # Lower bound of target color
+HSV_MAX = np.array([154, 255, 255], dtype=np.uint8)  # Upper bound of target color
+MIN_AREA = 500    # Minimum area to consider a valid detection
+MAX_AREA = 50000   # Maximum area to consider a valid detection
+
+# Servo Configuration
+GPIO_PIN = 17          # GPIO pin number for servo
+TARGET_ANGLE = 90      # Target angle to move to when blob detected (in degrees)
+START_ANGLE = 0        # Starting angle (in degrees)
+SERVO_COOLDOWN = 1.0   # Time to wait between servo movements (seconds)
 
 def parse_args():
     """Parse command line arguments."""
@@ -22,15 +39,9 @@ def parse_args():
                       help='Only save frames with color detections (default: save all frames)')
     return parser.parse_args()
 
-# Camera Configuration
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
-
-# HSV Color Detection Configuration
-HSV_MIN = np.array([107, 24, 6], dtype=np.uint8)    # Lower bound of target color
-HSV_MAX = np.array([154, 255, 255], dtype=np.uint8)  # Upper bound of target color
-MIN_AREA = 500    # Minimum area to consider a valid detection
-MAX_AREA = 50000   # Maximum area to consider a valid detection
+def angle_to_value(angle):
+    """Convert angle (0-180) to servo value (-1 to 1)"""
+    return -1 + (angle / 90.0)  # Maps 0° to -1, 90° to 0, and 180° to 1
 
 def init_camera(exposure):
     """Initialize the camera with specified resolution and exposure."""
@@ -66,6 +77,17 @@ def init_camera(exposure):
                 continue
     
     raise RuntimeError("No working camera found! Tried all available backends.")
+
+def init_servo():
+    """Initialize the servo motor"""
+    try:
+        servo = Servo(GPIO_PIN)
+        servo.value = angle_to_value(START_ANGLE)
+        print(f"Initialized servo on GPIO {GPIO_PIN}")
+        return servo
+    except Exception as e:
+        print(f"Failed to initialize servo: {str(e)}")
+        return None
 
 def save_image(frame, output_path):
     """Save image with proper encoding to avoid libpng warnings."""
@@ -123,9 +145,12 @@ def main():
     # Convert duration to seconds
     total_duration = args.duration * 60
     
-    # Initialize the camera
+    # Initialize the camera and servo
     try:
         camera = init_camera(args.exposure)
+        servo = init_servo()
+        if servo is None:
+            print("Warning: Servo initialization failed, continuing without servo control")
     except RuntimeError as e:
         print(f"Error: {str(e)}")
         return
@@ -142,7 +167,7 @@ def main():
     # Create log file in session directory
     log_path = session_dir / "capture_log.csv"
     with open(log_path, "w") as f:
-        f.write("timestamp,filepath,detection_found,center_x,center_y,area\n")
+        f.write("timestamp,filepath,detection_found,center_x,center_y,area,servo_moved\n")
     
     print(f"\nStarting capture session:")
     print(f"Duration: {args.duration} minutes")
@@ -153,6 +178,8 @@ def main():
     
     start_time = time.time()
     last_capture_time = start_time
+    last_servo_move = start_time - SERVO_COOLDOWN  # Allow immediate first move
+    current_angle = START_ANGLE
     
     try:
         while (time.time() - start_time) < total_duration:
@@ -171,6 +198,20 @@ def main():
                 # Detect target color
                 detected, processed_frame, mask, detection_info = detect_color(frame)
                 
+                # Control servo if blob detected and cooldown period has passed
+                servo_moved = False
+                if detected and servo is not None and (current_time - last_servo_move) >= SERVO_COOLDOWN:
+                    if current_angle == START_ANGLE:
+                        servo.value = angle_to_value(TARGET_ANGLE)
+                        current_angle = TARGET_ANGLE
+                        print(f"Blob detected! Moving servo to {TARGET_ANGLE}°")
+                    else:
+                        servo.value = angle_to_value(START_ANGLE)
+                        current_angle = START_ANGLE
+                        print(f"Returning servo to {START_ANGLE}°")
+                    last_servo_move = current_time
+                    servo_moved = True
+                
                 # Generate timestamp and filename
                 timestamp = datetime.datetime.now()
                 filename = f"frame_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -181,13 +222,13 @@ def main():
                     if save_image(processed_frame, str(filepath)):
                         print(f"Saved frame to {filepath}")
                         
-                        # Log the capture
+                        # Log the capture with servo movement info
                         with open(log_path, "a") as f:
                             if detected:
                                 cx, cy, area = detection_info
-                                f.write(f"{timestamp.isoformat()},{filepath},True,{cx},{cy},{area}\n")
+                                f.write(f"{timestamp.isoformat()},{filepath},True,{cx},{cy},{area},{servo_moved}\n")
                             else:
-                                f.write(f"{timestamp.isoformat()},{filepath},False,,,\n")
+                                f.write(f"{timestamp.isoformat()},{filepath},False,,,,False\n")
                     else:
                         print(f"Failed to save frame to {filepath}")
                 
@@ -198,11 +239,13 @@ def main():
             
     except KeyboardInterrupt:
         print("\nStopping capture")
-    
-    # Clean up
-    camera.release()
-    print(f"\nCapture complete. Log file saved to {log_path}")
-    print(f"All photos saved in: {session_dir}")
+    finally:
+        # Cleanup
+        camera.release()
+        if servo is not None:
+            servo.value = angle_to_value(START_ANGLE)  # Return to start position
+            servo.close()
+        print("Cleanup completed")
 
 if __name__ == "__main__":
     main()
