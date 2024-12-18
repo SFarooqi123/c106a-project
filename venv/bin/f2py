@@ -1,4 +1,6 @@
-#!/home/c106a/Desktop/c106a-project/venv/bin/python
+#!/bin/sh
+'''exec' "/Users/henrytsai/Documents/EECS 106A/c106a-project/venv/bin/python3.13" "$0" "$@"
+' '''
 # -*- coding: utf-8 -*-
 import re
 import sys

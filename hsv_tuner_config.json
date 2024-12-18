@@ -1,12 +1,10 @@
 {
-    "hsv_values": {
-        "h_min": 0,
-        "h_max": 179,
-        "s_min": 0,
-        "s_max": 255,
-        "v_min": 0,
-        "v_max": 255,
-        "area_min": 100,
-        "area_max": 500
-    }
+    "H min": -1,
+    "H max": -1,
+    "S min": -1,
+    "S max": -1,
+    "V min": -1,
+    "V max": -1,
+    "Area min": -1,
+    "Area max": -1
 }
