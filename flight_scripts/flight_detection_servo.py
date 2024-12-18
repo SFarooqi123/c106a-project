@@ -13,10 +13,10 @@ FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 #a
 # HSV Color Detection Configuration
-HSV_MIN = np.array([140, 153, 121], dtype=np.uint8)    # Lower bound of target color
+HSV_MIN = np.array([117, 141, 109], dtype=np.uint8)    # Lower bound of target color
 HSV_MAX = np.array([179, 255, 255], dtype=np.uint8)  # Upper bound of target color
-MIN_AREA = 5112    # Minimum area to consider a valid detection
-MAX_AREA = 50000  # Maximum area to consider a valid detection
+MIN_AREA = 10000    # Minimum area to consider a valid detection
+MAX_AREA = 22000  # Maximum area to consider a valid detection
 
 # Servo Configuration
 GPIO_PIN = 17          # GPIO pin number for servo
