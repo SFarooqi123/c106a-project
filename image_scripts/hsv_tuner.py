@@ -56,6 +56,9 @@ class HSVTuner:
                 print("No photos found in directory!")
                 sys.exit(1)
 
+        # Create OpenCV window first
+        cv2.namedWindow('Controls', cv2.WINDOW_NORMAL)
+
         # Load saved HSV configuration
         self.hsv_values = self.load_config()
 
@@ -63,11 +66,9 @@ class HSVTuner:
         atexit.register(self.cleanup)
         signal.signal(signal.SIGINT, self.signal_handler)
 
-        # Create OpenCV trackbars for HSV tuning
-        cv2.namedWindow('Controls', cv2.WINDOW_NORMAL)
+        # Create trackbars with loaded or default values
         for name, default, max_val in HSV_PARAMS:
             value = self.hsv_values.get(name, default)
-            value = max(0, min(value, max_val))  # Ensure value is within range
             cv2.createTrackbar(name, 'Controls', value, max_val, lambda x: None)
 
         # Pre-load current frame (if using photos) to reduce lag
@@ -87,21 +88,40 @@ class HSVTuner:
         cv2.destroyAllWindows()
 
     def load_config(self):
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                # Ensure loaded values are within valid ranges
-                for name, default, max_val in HSV_PARAMS:
-                    if name not in config or not (0 <= config[name] <= max_val):
-                        config[name] = default
-                return config
-        return {}
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                    # Initialize with defaults
+                    result = {name: default for name, default, _ in HSV_PARAMS}
+                    # Update with loaded values if they're valid
+                    for name, default, max_val in HSV_PARAMS:
+                        if name in config and isinstance(config[name], (int, float)):
+                            value = int(config[name])  # Convert to int
+                            if 0 <= value <= max_val:  # Validate range
+                                result[name] = value
+                    return result
+        except Exception as e:
+            print(f"Error loading config: {e}")
+        
+        # Return defaults if loading fails
+        return {name: default for name, default, _ in HSV_PARAMS}
 
     def save_config(self):
-        hsv_values = {name: cv2.getTrackbarPos(name, 'Controls') for name, _, _ in HSV_PARAMS}
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(hsv_values, f, indent=4)
-        print(f"Saved HSV values to {CONFIG_FILE}")
+        try:
+            hsv_values = {}
+            for name, _, max_val in HSV_PARAMS:
+                value = cv2.getTrackbarPos(name, 'Controls')
+                if 0 <= value <= max_val:  # Validate before saving
+                    hsv_values[name] = value
+                else:
+                    print(f"Warning: Invalid value for {name}: {value}")
+            
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(hsv_values, f, indent=4)
+            print(f"Saved HSV values to {CONFIG_FILE}")
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
     def load_current_photo(self):
         if 0 <= self.current_index < len(self.photo_files):
