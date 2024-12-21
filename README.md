@@ -1,5 +1,7 @@
 # Autonomous Airdrop
 
+![Plane at Berkeley Marina Cesar Chavez Park](plane_berkeley_marina.png)
+
 This repository contains code for the [Autonomous Airdrop](http://bit.ly/auto-airdrop) project- a fixed wing autonomous drone that can detect a color ground target and drop a payload (first-aid kit) onto it.
 
 This project was built during the Fall 2024 semester at UC Berkeley in the [EECS 106A](https://pages.github.berkeley.edu/EECS-106/fa24-site/) robotics course. Our work was sponsored by [Theseus](https://www.ycombinator.com/launches/Ln6-theseus-gps-denied-navigation-for-drones), a Y Combinator company working on GPS-denied navigation for drones. 
@@ -90,18 +92,11 @@ sudo ./config_scripts/raspi_network_script.sh
 ## File Structure
 ```
 .
-├── hsv_tuner.py              # HSV color space tuning tool
+├── hsv_tuner.py               # HSV color space tuning tool
 ├── flight_detection_servo.py  # Object detection and servo control
-├── config_scripts/
-│   └── raspi_network_script.sh # Network configuration utility
+├── raspi_network_script.sh    # Network configuration utility
 └── README.md
 ```
-
-## Contributing
-Feel free to submit issues and enhancement requests.
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgments
 - [Theseus](https://theseus.us) (YC S24) for sponsoring this project
