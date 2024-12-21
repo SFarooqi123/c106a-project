@@ -1,5 +1,91 @@
 #!/usr/bin/env python3
 
+"""
+HSV Color Space Tuner
+
+An interactive tool for tuning HSV (Hue, Saturation, Value) color ranges and area thresholds
+for object detection in images or video streams. This utility helps find optimal HSV values 
+for detecting specific colored objects in computer vision applications.
+
+Features:
+- Interactive trackbars for HSV and area threshold adjustment
+- Real-time visualization of color detection results
+- Support for both image files and live video
+- Toggle between BGR and RGB color spaces
+- Save/load configuration settings
+- Object detection with area filtering
+- Center point and bounding box visualization
+- Photo navigation in directory mode
+
+Usage:
+    Image Mode (path to a folder of images):
+        python3 hsv_tuner.py --image <path_to_image_directory>
+    Video Mode:
+        python3 hsv_tuner.py --video [camera_index]
+
+Interactive Controls:
+    HSV Trackbars:
+        H min (0-179): Minimum hue value for color detection
+        H max (0-179): Maximum hue value for color detection
+        S min (0-255): Minimum saturation value
+        S max (0-255): Maximum saturation value
+        V min (0-255): Minimum brightness/value
+        V max (0-255): Maximum brightness/value
+
+    Area Trackbars:
+        Area min (0-10000): Minimum pixel area for object detection
+        Area max (0-10000): Maximum pixel area for object detection
+
+    Color Mode:
+        BGR Mode (0/1): Toggle between color spaces
+            1: BGR mode (OpenCV default)
+            0: RGB mode (standard format)
+
+    Keyboard Commands:
+        q: Quit the application and print final values
+        s: Save current configuration to file
+        l: Load configuration from file
+        r: Reset trackbars to default values
+        ESC: Alternative way to exit
+        
+        Image Directory Mode Only:
+        n: Next image in directory
+        b: Previous image in directory (back)
+        
+        Any other key: Continue running/update display
+
+Display Windows:
+    Original: Input image/video in selected color mode
+    Mask: Binary threshold result showing detected colors
+        - White: Pixels within HSV range
+        - Black: Pixels outside HSV range
+    Result: Detection visualization
+        - Green contours: Outline of detected objects
+        - Blue rectangles: Bounding boxes
+        - Text overlay: Area and center coordinates
+
+Configuration File:
+    Format:
+        - Color mode (BGR/RGB)
+        - HSV ranges [min,max] for each channel
+        - Area thresholds [min,max]
+        - Per-object data:
+            * Area in pixels
+            * Center coordinates (x,y)
+            * Bounding box (x,y,width,height)
+
+Real-time Display:
+    Terminal shows:
+        - Current color mode
+        - HSV range values
+        - Area thresholds
+        - Number of detected objects
+        - Current image name (in directory mode)
+
+Author: Henry Tsai
+Created: 2024-12-21
+"""
+
 import cv2
 import numpy as np
 import argparse
