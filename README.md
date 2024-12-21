@@ -1,7 +1,8 @@
-# Computer Vision Tools for Object Detection
+# Autonomous Airdrop
 
-This repository contains a collection of tools for computer vision-based object detection and tracking, specifically designed for robotics applications.
+This repository contains code for the [Autonomous Airdrop](http://bit.ly/auto-airdrop) project- a fixed wing autonomous drone that can detect a color ground target and drop a payload (first-aid kit) onto it.
 
+This project was built during the Fall 2024 semester at UC Berkeley in the [EECS 106A](https://pages.github.berkeley.edu/EECS-106/fa24-site/) robotics course. Our work was sponsored by [Theseus](https://www.ycombinator.com/launches/Ln6-theseus-gps-denied-navigation-for-drones), a Y Combinator company working on GPS-denied navigation for drones. 
 ## Tools
 
 ### HSV Color Tuner

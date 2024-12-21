@@ -1,30 +1,3 @@
-"""
-Flight Detection and Servo Control System
-
-This script implements a real-time color detection and servo control system using OpenCV.
-It captures video from a camera, processes frames to detect objects of a specific color,
-and controls a servo motor based on the detections.
-
-Features:
-- Real-time color detection using HSV color space
-- Servo motor control for automated responses to detections
-- Configurable parameters via JSON config file
-- Command-line argument support for runtime configuration
-
-Usage:
-    python3 flight_detection_servo_filter.py [-d DURATION] [-i INTERVAL] [-e EXPOSURE] [-o OUTPUT_DIR] [--detections-only]
-
-Dependencies:
-    - OpenCV (cv2)
-    - NumPy
-    - lgpio
-    - argparse
-    - json
-
-Author: Henry Tsai
-Created: 2024-12-21
-"""
-
 #!/usr/bin/env python3
 
 import cv2

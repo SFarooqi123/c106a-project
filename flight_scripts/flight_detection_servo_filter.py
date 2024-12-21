@@ -1,30 +1,3 @@
-"""
-Flight Detection and Servo Control System
-
-This script implements a real-time color detection and servo control system using OpenCV.
-It captures video from a camera, processes frames to detect objects of a specific color,
-and controls a servo motor based on the detections.
-
-Features:
-- Real-time color detection using HSV color space
-- Servo motor control for automated responses to detections
-- Configurable parameters via JSON config file
-- Command-line argument support for runtime configuration
-
-Usage:
-    python3 flight_detection_servo_filter.py [-d DURATION] [-i INTERVAL] [-e EXPOSURE] [-o OUTPUT_DIR] [--detections-only]
-
-Dependencies:
-    - OpenCV (cv2)
-    - NumPy
-    - lgpio
-    - argparse
-    - json
-
-Author: Henry Tsai
-Created: 2024-12-21
-"""
-
 #!/usr/bin/env python3
 
 import cv2
@@ -34,16 +7,57 @@ import datetime
 import argparse
 from pathlib import Path
 import lgpio
+import json
+import os
 
 # Camera Configuration
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
-#a
+
 # HSV Color Detection Configuration
 HSV_MIN = np.array([117, 141, 109], dtype=np.uint8)    # Lower bound of target color
 HSV_MAX = np.array([179, 255, 255], dtype=np.uint8)  # Upper bound of target color
 MIN_AREA = 10000    # Minimum area to consider a valid detection
 MAX_AREA = 22000  # Maximum area to consider a valid detection
+
+# Image Processing Configuration
+CONFIG_FILE = 'image_process_config.json'
+DEFAULT_PARAMS = {
+    'bilateral_d': 9,        # Diameter of each pixel neighborhood (must be odd)
+    'bilateral_sigma_color': 75,  # Filter sigma in the color space
+    'bilateral_sigma_space': 75,  # Filter sigma in the coordinate space
+    'alpha': 100,  # Contrast (100 = 1.0)
+    'beta': 0,    # Brightness (0-100)
+    'gamma': 100  # Gamma value (100 = 1.0)
+}
+
+# Load image processing parameters from config file
+def load_process_config():
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                # Validate and update with defaults if needed
+                result = DEFAULT_PARAMS.copy()
+                for key, value in config.items():
+                    if key in result and isinstance(value, (int, float)):
+                        result[key] = value
+                return result
+    except Exception as e:
+        print(f"Error loading config: {e}")
+    return DEFAULT_PARAMS.copy()
+
+# Save image processing parameters to config file
+def save_process_config(params):
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(params, f, indent=4)
+        print(f"Saved processing parameters to {CONFIG_FILE}")
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+# Image Processing Parameters
+PROCESS_PARAMS = load_process_config()
 
 # Servo Configuration
 GPIO_PIN = 17          # GPIO pin number for servo
@@ -134,10 +148,45 @@ def save_image(frame, output_path):
         return True
     return False
 
+def process_frame(frame):
+    """Apply image processing filters to the frame."""
+    try:
+        if frame is None or frame.size == 0:
+            return frame
+
+        # Make a copy to avoid modifying the original
+        image = frame.copy()
+        
+        # Denoise the image with bilateral filter
+        denoised = cv2.bilateralFilter(image, 
+                                     PROCESS_PARAMS['bilateral_d'],
+                                     PROCESS_PARAMS['bilateral_sigma_color'], 
+                                     PROCESS_PARAMS['bilateral_sigma_space'])
+        
+        # Adjust brightness and contrast
+        alpha = max(PROCESS_PARAMS['alpha'] / 100.0, 0.01)  # Convert to float
+        beta = PROCESS_PARAMS['beta']
+        adjusted = cv2.convertScaleAbs(denoised, alpha=alpha, beta=beta)
+        
+        # Apply gamma correction
+        gamma = max(PROCESS_PARAMS['gamma'] / 100.0, 0.01)  # Convert to float
+        inv_gamma = 1.0 / gamma
+        table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
+        processed = cv2.LUT(adjusted, table)
+        
+        return processed
+
+    except Exception as e:
+        print(f"Error in processing: {e}")
+        return frame
+
 def detect_color(frame):
     """Detect if target color is present in frame and return detection info."""
+    # First apply image processing
+    processed_frame = process_frame(frame)
+    
     # Convert to HSV color space
-    hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(processed_frame, cv2.COLOR_RGB2HSV)
     
     # Create mask for target color
     mask = cv2.inRange(hsv, HSV_MIN, HSV_MAX)
@@ -163,13 +212,17 @@ def detect_color(frame):
             cy = int(M['m01'] / M['m00'])
             
             # Draw detection on frame
-            cv2.drawContours(frame, [best_cnt], -1, (0, 255, 0), 2)
-            cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
-            cv2.putText(frame, f'Area: {int(max_area)}', (cx, cy - 10),
+            cv2.drawContours(processed_frame, [best_cnt], -1, (0, 255, 0), 2)
+            cv2.circle(processed_frame, (cx, cy), 5, (0, 0, 255), -1)
+            cv2.putText(processed_frame, f'Area: {int(max_area)}', (cx, cy - 10),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             
+            # Update the input frame with the processed version
+            frame[:] = processed_frame[:]
             return (cx, cy, max_area)
     
+    # Update the input frame with the processed version even if no detection
+    frame[:] = processed_frame[:]
     return None
 
 def main():

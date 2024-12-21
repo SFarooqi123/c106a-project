@@ -1,0 +1,8 @@
+{
+    "bilateral_d": 9,
+    "bilateral_sigma_color": 75,
+    "bilateral_sigma_space": 75,
+    "alpha": 100,
+    "beta": 0,
+    "gamma": 61
+}
