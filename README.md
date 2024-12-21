@@ -2,9 +2,16 @@
 
 ![Plane at Berkeley Marina Cesar Chavez Park](plane_berkeley_marina.png)
 
+![Theseus Logo](theseus_logo.png)
+
 This repository contains code for the [Autonomous Airdrop](http://bit.ly/auto-airdrop) project- a fixed wing autonomous drone that can detect a color ground target and drop a payload (first-aid kit) onto it.
 
 This project was built during the Fall 2024 semester at UC Berkeley in the [EECS 106A](https://pages.github.berkeley.edu/EECS-106/fa24-site/) robotics course. Our work was sponsored by [Theseus](https://www.ycombinator.com/launches/Ln6-theseus-gps-denied-navigation-for-drones), a Y Combinator company working on GPS-denied navigation for drones. 
+
+The actual flight controls (rudder, elevator, ailerons, throttle) and navigation were handled by PX4, an open source autopilot platform for UAVs. We simply added a Raspberry Pi, Arducam color camera, and servo to the plane for automatic airdrop capability. The `flight_detection_servo.py` script would be run on the Pi during flight, where it would capture a stream of footage from the downward-facing camera on the plane's nose and trigger the servo to open and drop the payload (first-aid kit) when a specific target (red tarp) was detected according to our HSV target range.
+
+We also include two scripts that we used to accelerate the process for tuning the HSV values based on previous flight footage (a series of images captured at 1 FPS) and setting up the Raspberry Pi network.
+
 ## Tools
 
 ### HSV Color Tuner
