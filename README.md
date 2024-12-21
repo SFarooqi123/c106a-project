@@ -39,7 +39,7 @@ A utility for setting up Raspberry Pi as a WiFi Access Point.
 
 #### Usage
 ```bash
-sudo ./config_scripts/raspi_network_script.sh
+sudo ./raspi_network_config.sh
 ```
 
 ## Installation
@@ -67,7 +67,7 @@ pip3 install -r requirements.txt
 
 3. Make scripts executable:
 ```bash
-chmod +x config_scripts/raspi_network_script.sh
+chmod +x raspi_network_config.sh
 ```
 
 ## Usage Examples
@@ -85,7 +85,7 @@ python3 hsv_tuner.py --image ./sample_images
 1. Connect to your Raspberry Pi
 2. Run the network configuration script:
 ```bash
-sudo ./config_scripts/raspi_network_script.sh
+sudo ./raspi_network_config.sh
 ```
 3. Follow the prompts to configure your WiFi Access Point
 
